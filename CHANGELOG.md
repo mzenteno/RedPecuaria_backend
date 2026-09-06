@@ -387,8 +387,30 @@ registra *qué* se implementó a nivel código; el *por qué* de cada decisión 
 - **Migraciones en producción sin correr en Render** (causaba 500 en `GET
   /dashboard/admin-summary`, columnas `movement_type`/`investor_user_id` inexistentes en
   Neon) — el "Pre-Deploy Command" documentado como solución resultó ser solo para instancias
-  pagas de Render. Nueva solución: `"start:prod": "npm run migration:run && node dist/main"` —
-  corre la migración antes de levantar la app, en cada arranque (deploy o wake del free tier).
-  `ts-node`/`tsconfig-paths`/`typescript` pasan de `devDependencies` a `dependencies` (el CLI de
-  TypeORM los necesita en producción, no solo en build) — verificado con un `npm install
-  --omit=dev` simulado. Ver `ARCHITECTURE.md` §12.
+  pagas de Render, nunca llegó a correr. Solución final: `migrationsRun: true` +
+  `migrations: [join(__dirname, 'migrations/*{.ts,.js}')]` en `TypeOrmModule.forRootAsync`
+  (`app.module.ts`) — mismo criterio que Flyway en Spring Boot, corre en cada arranque del
+  proceso usando la misma conexión que ya arma la app, contra los `.js` ya compilados (no
+  necesita `ts-node` en producción). Verificado en los dos modos (compilado y `nest start`)
+  contra `RedPecuariaTest`: revirtiendo una migración a mano y confirmando que el arranque la
+  vuelve a aplicar sola. Se probó antes encadenar `migration:run` a `start:prod` (funcionaba,
+  pero requería mover `ts-node`/`typescript` a `dependencies`) — descartado en favor de esta
+  solución, más simple. Ver `ARCHITECTURE.md` §12.
+- **"Nueva inversión" ya no depende de ningún filtro elegido** — el botón necesitaba, además
+  del permiso, que la página ya tuviera una Propiedad elegida en su combo de filtro
+  (`onNew={canCreate && propertyId ? ... : undefined}`), así que con los 3 filtros vacíos (o
+  con Gestión/Inversionista elegidos pero sin Propiedad) el botón directamente no aparecía.
+  `InvestmentDialog` ahora tiene su propio combobox de Propiedad — el botón se movió fuera de
+  `PageToolbar`/`activeMode`, a su propia fila siempre visible con solo el permiso `canCreate`.
+  Ver `docs/investment/investment.md`.
+- **El combo de Propiedad del alta se precarga con el filtro de la página**, si ya había uno
+  elegido — nuevo `defaultPropertyId` en `InvestmentDialog` (sigue siendo editable, no fijo).
+  Evita elegir la misma propiedad dos veces. Ver `docs/investment/investment.md`.
+- **La propiedad de una inversión se puede cambiar al editar** — se había deshabilitado el
+  combo de Propiedad al editar por error, asumiendo el mismo criterio que `username`
+  (identificador que no se puede tocar); el usuario corrigió que sí debía poder cambiarse.
+  `Investment.propertyId` deja de ser `readonly` (`update()` ahora también lo recibe);
+  `UpdateInvestmentUseCase` valida que la propiedad nueva sea de la empresa activa si cambió
+  (mismo chequeo que al crear, `PropertyNotFoundException` si no). Verificado en vivo contra
+  `RedPecuariaTest`: se movió una inversión de una propiedad a otra y de vuelta. Ver
+  `docs/investment/investment.md`.

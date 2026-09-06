@@ -497,32 +497,37 @@ Stack de despliegue elegido (gratis): **Vercel** (frontend Next.js) + **Render**
 free tier con sleep tras 15 min de inactividad) + **Neon** (Postgres, sin fecha de expiración
 — a diferencia del Postgres gratis de Render, que borra la base a los 30 días).
 
-**Migraciones en producción**: no son automáticas al arrancar el backend vía `migrationsRun`
-(`app.module.ts` no lo tiene, a propósito). Decisión original: usar el **"Pre-Deploy Command"**
-de Render (`npm run migration:run`, corre una sola vez por deploy, antes de que la nueva
-versión reciba tráfico) — **descartada al implementarla**: esa función es solo para instancias
-pagas ("Pre-Deploy Command is available for paid instances only"), y el plan usado es el free
-tier. Solución real, encontrada un 2026-09-06 tras un 500 en producción (`GET
-/dashboard/admin-summary`, columnas de una migración que nunca corrió contra Neon): **encadenar
-la migración al propio `start:prod`** —
+**Migraciones en producción — `migrationsRun: true`** (`app.module.ts`, `TypeOrmModule.
+forRootAsync`), mismo criterio que Flyway en Spring Boot: corren automáticamente **al
+establecer la conexión, en cada arranque del proceso** (deploy nuevo, o el proceso despertando
+del sleep del free tier de Render) — antes de que la app empiece a recibir tráfico. Si una
+migración falla, la app no llega a arrancar (mejor eso que servir tráfico contra un esquema
+desactualizado). Necesita también `migrations: [join(__dirname, 'migrations/*{.ts,.js}')]` —
+el glob con `__dirname` sirve para los dos entornos sin duplicar config: en desarrollo (`nest
+start`, vía ts-node) `__dirname` resuelve a `src/` y matchea los `.ts`; ya compilado (`node
+dist/main`) resuelve a `dist/` y matchea los `.js`. Verificado en los dos modos contra
+`RedPecuariaTest`: revirtiendo una migración a mano (`migration:revert`) y arrancando el
+proceso (compilado y en modo `nest start`), confirmando que la vuelve a aplicar sola sin correr
+ningún comando.
 
-```json
-"start:prod": "npm run migration:run && node dist/main"
-```
+**Iteraciones previas, descartadas** (documentadas para que quede el motivo de cada una):
+1. **"Pre-Deploy Command" de Render** (`npm run migration:run`, corre una sola vez por deploy)
+   — descartada **al intentar configurarla**: esa función es solo para instancias pagas
+   ("Pre-Deploy Command is available for paid instances only"), y el plan usado es el free
+   tier. Nunca llegó a correr — causó un 500 real en producción (`GET
+   /dashboard/admin-summary`, columnas de una migración que nunca se aplicó contra Neon).
+2. **Encadenar la migración al propio `start:prod`**
+   (`"start:prod": "npm run migration:run && node dist/main"`) — funcionaba (verificado), pero
+   requería mover `ts-node`/`tsconfig-paths`/`typescript` de `devDependencies` a `dependencies`
+   (el CLI de TypeORM ejecuta los `.ts` de `src/migrations/` directo, necesita esos paquetes en
+   producción). Se descartó en favor de `migrationsRun: true`, que no necesita nada de eso —
+   corre contra los `.js` ya compilados, usando la misma conexión que ya arma la app.
+3. **Dejarlo 100% manual para siempre** — obliga a acordarse de correr el comando a mano en
+   cada deploy que agregue una migración (la causa raíz del incidente de arriba).
 
-Render ya corre `npm run start:prod` como "Start Command" (no hace falta tocar nada del
-dashboard) — así la migración corre **antes** de que la app empiece a escuchar, en cada arranque
-del proceso (deploy nuevo, o el proceso despertando del sleep del free tier). No es un
-problema que corra "de más": `migration:run` primero consulta la tabla `migrations` y no hace
-nada si ya está todo al día (mismo costo que un par de `SELECT`, verificado). Requirió mover
-`ts-node`/`tsconfig-paths`/`typescript` de `devDependencies` a `dependencies` — el CLI de
-TypeORM (`typeorm-ts-node-commonjs`) ejecuta los archivos `.ts` de `src/migrations/` directo, y
-esos paquetes tienen que existir en producción, no solo en build; verificado simulando un
-`npm install --omit=dev` (lo más parecido a como un builder puede instalar en runtime) contra
-`RedPecuariaTest` antes de este cambio. Se evaluaron y descartaron: `migrationsRun: true`
-(corre en cada arranque igual que esta solución, pero mezclado dentro del propio
-`TypeOrmModule.forRootAsync` — menos visible en los logs que un paso explícito antes de
-`node dist/main`) y dejarlo 100% manual para siempre (obliga a acordarse de correr el comando a
-mano en cada deploy que agregue una migración — ya causó el 500 de arriba). Ninguna corrida de
-migración contra una base real (Neon o la de desarrollo) se hace sin confirmación explícita —
-ver `.env.neon.example`.
+**Caveat conocido de `migrationsRun: true`** (no aplica hoy, sí si se escala): a diferencia de
+Flyway, TypeORM no tiene un lock de fila que impida que dos instancias corran migraciones al
+mismo tiempo — con más de una instancia del backend arrancando a la vez, podría haber una
+condición de carrera. El free tier de Render solo permite una instancia, así que hoy no es un
+riesgo real; revisar si el plan cambia. Ninguna corrida de migración contra una base real (Neon
+o la de desarrollo) se hace sin confirmación explícita — ver `.env.neon.example`.

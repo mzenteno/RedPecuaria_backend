@@ -5,6 +5,7 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
+import { PropertyNotFoundException } from '@domain/property/exceptions/property-not-found.exception';
 import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
@@ -30,6 +31,7 @@ import { validateInvestors } from '../validate-investors';
 export interface UpdateInvestmentInput {
   investmentId: string;
   companyId: string;
+  propertyId: string;
   gestion: number;
   description: string;
   investorUserIds: string[];
@@ -66,6 +68,18 @@ export class UpdateInvestmentUseCase {
       throw new InvestmentNotFoundException(input.investmentId);
     }
 
+    // Si `propertyId` cambió, la propiedad NUEVA también tiene que ser de
+    // la empresa activa — mismo chequeo que `CreateInvestmentUseCase`, para
+    // no poder "mudar" una inversión a una propiedad de otra empresa.
+    if (input.propertyId !== investment.propertyId) {
+      const newProperty = await this.propertyRepository.findById(
+        input.propertyId,
+      );
+      if (!newProperty || newProperty.companyId !== input.companyId) {
+        throw new PropertyNotFoundException(input.propertyId);
+      }
+    }
+
     await validateInvestors(input.investorUserIds, input.companyId, {
       userRepository: this.userRepository,
       userTypeRepository: this.userTypeRepository,
@@ -74,6 +88,7 @@ export class UpdateInvestmentUseCase {
 
     return this.transactionManager.run(async (ctx) => {
       investment.update({
+        propertyId: input.propertyId,
         gestion: input.gestion,
         description: input.description,
       });

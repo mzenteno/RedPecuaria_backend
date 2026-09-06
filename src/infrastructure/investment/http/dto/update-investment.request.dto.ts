@@ -13,6 +13,10 @@ const MIN_GESTION = 2000;
 const MAX_GESTION = 2100;
 
 export class UpdateInvestmentRequestDto {
+  @IsString()
+  @MinLength(1)
+  propertyId: string;
+
   @IsInt()
   @Min(MIN_GESTION)
   @Max(MAX_GESTION)

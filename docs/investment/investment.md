@@ -83,7 +83,9 @@ motivo de cada límite:
 ## Reglas de negocio actuales
 
 - Una `Investment` pertenece a **una `Property`** (y por lo tanto a una empresa, a través de
-  ella) — sin `companyId` propio.
+  ella) — sin `companyId` propio. La propiedad **sí se puede cambiar** al editar
+  (`UpdateInvestmentUseCase` valida que la nueva propiedad sea de la empresa activa, mismo
+  chequeo que al crear — `PropertyNotFoundException` si no).
 - Necesita **al menos un inversionista** (`InvestorsRequiredException` si la lista viene vacía).
 - Un inversionista tiene que ser: un usuario que exista, de tipo **Inversionista**
   (`UserType.isInvestor()`, ver `docs/user-type/user-type.md`), y que pertenezca (con
@@ -169,11 +171,12 @@ resultados incompletos.
   dejar de aplicar ese filtro (ver `Select`/`onClear`, `frontend/ARCHITECTURE.md` §9) — antes de
   esto no había forma de deshacer una elección, y "Propiedad" sola no disparaba nada. Los tres
   filtros están paginados en el servidor (`page`/`pageSize`, `<Pagination>`) — cambiar
-  cualquiera de los tres resetea la página a 1. "Nueva inversión" solo se ofrece con una
-  Propiedad puntual elegida — crear necesita saber a qué propiedad va, sea cual sea el modo
-  activo. El diálogo de alta/edición tiene un combobox de Gestión (años), un campo de
-  Descripción, y un checklist de Inversionistas (solo usuarios de tipo Inversionista de la
-  empresa activa).
+  cualquiera de los tres resetea la página a 1. "Nueva inversión" es siempre visible (con
+  permiso `canCreate`), sin importar ningún filtro elegido — el diálogo (alta y edición) tiene
+  su propio combobox de Propiedad (además de Gestión y el checklist de Inversionistas),
+  **editable en los dos modos**: en el alta se precarga con la Propiedad del filtro de la página
+  si ya había una elegida (sigue siendo editable); al editar, se puede cambiar a cualquier otra
+  propiedad de la empresa activa — mueve la inversión de propiedad de verdad.
 - `app/(main)/kardex` — pantalla propia del sidebar (menú `kardex`, hermano de `properties` e
   `investments` bajo "Inversiones"), con permiso propio (`canView/canCreate/canEdit/canDelete`)
   independiente del de `investments`: un rol puede tener uno sin el otro (ej. alguien que solo
@@ -200,6 +203,8 @@ resultados incompletos.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-06 — La propiedad de una inversión se puede cambiar al editar](./changes/2026-09-06-editar-propiedad-de-inversion.md)
+- [2026-09-06 — "Nueva inversión" ya no depende de ningún filtro elegido](./changes/2026-09-06-crear-inversion-sin-filtro.md)
 - [2026-09-06 — "Propiedad" también dispara la consulta, y los 3 filtros se pueden limpiar](./changes/2026-09-06-propiedad-como-filtro-independiente.md)
 - [2026-09-05 — Paginación de servidor en Inversiones (3 variantes) y Kardex](./changes/2026-09-05-paginacion-de-servidor.md)
 - [2026-09-04 — El atajo "Ver kardex" no te "saca" de Inversiones](./changes/2026-09-04-sidebar-y-volver-en-atajo-de-kardex.md)
