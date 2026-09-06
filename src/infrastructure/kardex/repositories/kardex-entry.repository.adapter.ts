@@ -42,6 +42,16 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       });
     }
 
+    if (params.restrictSalesToInvestorId) {
+      // "ingreso"/"baja" pasan siempre (son generales, sin inversionista) —
+      // solo "venta" se filtra a las que le corresponden a este
+      // inversionista puntual.
+      query.andWhere(
+        "(entry.movement_type != 'venta' OR entry.investor_user_id = :restrictSalesToInvestorId)",
+        { restrictSalesToInvestorId: params.restrictSalesToInvestorId },
+      );
+    }
+
     const [rows, total] = await query
       .orderBy('entry.entry_date', 'ASC')
       .addOrderBy('entry.created_at', 'ASC')

@@ -414,3 +414,28 @@ registra *qué* se implementó a nivel código; el *por qué* de cada decisión 
   (mismo chequeo que al crear, `PropertyNotFoundException` si no). Verificado en vivo contra
   `RedPecuariaTest`: se movió una inversión de una propiedad a otra y de vuelta. Ver
   `docs/investment/investment.md`.
+- El checklist de "Inversionistas" (`InvestmentDialog`) muestra solo el nombre completo — antes
+  también mostraba el `username` entre paréntesis (ej. "mauricio (jmauricio)").
+- **Diálogos con muchos campos pasan a pantalla completa en mobile** — nueva clase
+  `.dialog-panel-lg`, aplicada a `UserDialog`/`PropertyDialog`/`InvestmentDialog`/
+  `KardexEntryDialog` (los 4 con más campos del proyecto). Por debajo de 640px de ancho, en vez
+  del modal chico centrado con margen oscuro a los costados, ocupa toda la pantalla — mismo
+  criterio que cualquier app mobile (Material Design/iOS): modal chico solo para confirmaciones
+  cortas. `CompanyDialog`/`RoleDialog` (un solo campo) no cambian. Verificado con Playwright en
+  414×846 (mismo viewport que reportó el usuario) y en desktop, sin cambios ahí. Ver
+  `frontend/ARCHITECTURE.md` §2.
+
+### Security
+- **Un inversionista ya no ve las ventas de otros inversionistas de la misma inversión** —
+  `GET /kardex-entries?investmentId=` filtra los movimientos "venta" al propio usuario cuando
+  quien pide el listado es de tipo Inversionista (`isInvestor` del token); "ingreso"/"baja"
+  nunca se filtran (son generales). Un Administrador/Super Administrador sigue viendo todo.
+  Filtrado en la query del backend, no solo ocultado en el frontend. Nuevo
+  `FindKardexEntriesParams.restrictSalesToInvestorId`. Verificado en vivo contra
+  `RedPecuariaTest` con dos inversionistas de prueba. Ver `docs/investment/investment.md`.
+- **Ícono de "Notificaciones" del `TopBar` eliminado** — sin ningún evento de negocio que
+  notificar todavía, se decidió quitarlo en vez de dejarlo decorativo indefinidamente (mismo
+  criterio que "Configuración", quitado antes por el mismo motivo). El ícono de "Buscar" queda
+  tal cual, decorativo a propósito — cada pantalla de listado ya tiene su propio buscador,
+  un buscador global es una comodidad sin necesidad real sin cubrir hoy. Ver
+  `frontend/ARCHITECTURE.md` §8.

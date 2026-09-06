@@ -21,6 +21,11 @@ import { assertInvestmentOwnership } from '../assert-investment-ownership';
 export interface ListKardexEntriesByInvestmentInput extends PaginationParams {
   investmentId: string;
   companyId: string;
+  /** true si quien pide el listado es de tipo Inversionista (no
+   * Administrador/Super Administrador, ver `UserType.isInvestor()`) —
+   * decide si se le filtran las ventas de otros inversionistas. */
+  viewerIsInvestor: boolean;
+  viewerUserId: string;
 }
 
 @Injectable()
@@ -42,6 +47,14 @@ export class ListKardexEntriesByInvestmentUseCase {
       propertyRepository: this.propertyRepository,
     });
 
-    return this.kardexEntryRepository.findActiveByInvestment(input);
+    return this.kardexEntryRepository.findActiveByInvestment({
+      investmentId: input.investmentId,
+      page: input.page,
+      pageSize: input.pageSize,
+      search: input.search,
+      restrictSalesToInvestorId: input.viewerIsInvestor
+        ? input.viewerUserId
+        : undefined,
+    });
   }
 }

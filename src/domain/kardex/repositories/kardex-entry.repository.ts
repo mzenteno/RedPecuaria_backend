@@ -9,6 +9,13 @@ export const KARDEX_ENTRY_REPOSITORY = Symbol('KardexEntryRepository');
 
 export interface FindKardexEntriesParams extends PaginationParams {
   investmentId: string;
+  /** Si viene, los movimientos "venta" se filtran a los que le corresponden
+   * a este inversionista puntual — "ingreso"/"baja" nunca se filtran (son
+   * generales, sin inversionista, ver `docs/investment/investment.md`). Se
+   * manda solo cuando quien pide el listado es de tipo Inversionista; un
+   * Administrador/Super Administrador ve todas las ventas (sin este
+   * parámetro). */
+  restrictSalesToInvestorId?: string;
 }
 
 export interface KardexEntryRepository {

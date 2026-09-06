@@ -103,6 +103,14 @@ motivo de cada límite:
   inversionistas de la inversión (`InvestmentRepository.findInvestorIds`) si `movementType ===
   'venta'`; en cualquier otro caso debe venir vacío — cualquier combinación inválida lanza
   `InvalidKardexInvestorException` (ver `assertKardexInvestor`).
+- **Un Inversionista no ve las ventas de otros inversionistas de la misma inversión** —
+  `GET /kardex-entries` filtra los movimientos "venta" a los que le corresponden al usuario
+  logueado cuando es de tipo Inversionista (`isInvestor` del token, ver `docs/user-type/
+  user-type.md`); "ingreso"/"baja" nunca se filtran (son generales, sin inversionista). Un
+  Administrador/Super Administrador ve todas las ventas, sin este filtro. Es una regla de
+  privacidad (cuánto le vendieron a otro inversionista es un dato que no le corresponde ver),
+  aplicada en el backend (la query), no solo ocultada en el frontend — un chequeo solo en el
+  cliente no evita ver el dato real inspeccionando la respuesta de la API directamente.
 
 ## Casos de uso (Application)
 
@@ -126,7 +134,7 @@ motivo de cada límite:
 | `CreateKardexEntryUseCase` | Crea una fila de kardex | `InvestmentNotFoundException` |
 | `UpdateKardexEntryUseCase` | Actualiza una fila existente | `KardexEntryNotFoundException`, `InvestmentNotFoundException` |
 | `DeactivateKardexEntryUseCase` | Desactiva una fila | `KardexEntryNotFoundException`, `InvestmentNotFoundException` |
-| `ListKardexEntriesByInvestmentUseCase` | Lista las filas activas de una inversión, ordenadas por fecha | `InvestmentNotFoundException` |
+| `ListKardexEntriesByInvestmentUseCase` | Lista las filas activas de una inversión, ordenadas por fecha — si quien pide el listado es Inversionista, filtra las "venta" de otros inversionistas | `InvestmentNotFoundException` |
 
 ## HTTP
 
@@ -148,7 +156,7 @@ empresa activa en cada caso de uso, nunca se confía en el id a ciegas).
 | `POST /kardex-entries` | `CreateKardexEntryUseCase` |
 | `PATCH /kardex-entries/:id` | `UpdateKardexEntryUseCase` |
 | `PATCH /kardex-entries/:id/deactivate` | `DeactivateKardexEntryUseCase` (204) |
-| `GET /kardex-entries?investmentId=&page=&pageSize=&search=` | `ListKardexEntriesByInvestmentUseCase` — paginado en el servidor, `search` filtra por `detail` |
+| `GET /kardex-entries?investmentId=&page=&pageSize=&search=` | `ListKardexEntriesByInvestmentUseCase` — paginado en el servidor, `search` filtra por `detail`; si el que llama es Inversionista (`isInvestor` del token), filtra las "venta" de otros inversionistas |
 
 `page`/`pageSize`/`search` son el mismo patrón que `GET /users` (ver `docs/auth-sessions` o
 `ARCHITECTURE.md` §8/§9 del backend): `PaginationParams`/`PaginatedResult<T>` en el dominio,
@@ -203,6 +211,7 @@ resultados incompletos.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-06 — Un inversionista no ve las ventas de otros inversionistas](./changes/2026-09-06-privacidad-ventas-por-inversionista.md)
 - [2026-09-06 — La propiedad de una inversión se puede cambiar al editar](./changes/2026-09-06-editar-propiedad-de-inversion.md)
 - [2026-09-06 — "Nueva inversión" ya no depende de ningún filtro elegido](./changes/2026-09-06-crear-inversion-sin-filtro.md)
 - [2026-09-06 — "Propiedad" también dispara la consulta, y los 3 filtros se pueden limpiar](./changes/2026-09-06-propiedad-como-filtro-independiente.md)

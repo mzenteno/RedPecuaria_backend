@@ -78,6 +78,8 @@ export class KardexEntryController {
   async list(
     @Query() query: ListKardexEntriesQueryDto,
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('isInvestor') isInvestor: boolean,
+    @CurrentUser('sub') userId: string,
   ): Promise<PaginatedResponseDto<KardexEntryResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -87,6 +89,8 @@ export class KardexEntryController {
       investmentId: query.investmentId,
       companyId,
       search: query.search,
+      viewerIsInvestor: isInvestor,
+      viewerUserId: userId,
     });
     return {
       data: result.items.map((entry) => KardexEntryMapper.toResponse(entry)),
