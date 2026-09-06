@@ -3,7 +3,11 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
 import { Property } from '@domain/property/entities/property';
-import { PropertyRepository } from '@domain/property/repositories/property.repository';
+import {
+  PropertyRepository,
+  FindPropertiesParams,
+} from '@domain/property/repositories/property.repository';
+import { PaginatedResult } from '@domain/common/paginated-result';
 import { PropertyEntity } from '../entities/property.entity';
 
 @Injectable()
@@ -29,15 +33,35 @@ export class PropertyRepositoryAdapter implements PropertyRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async findActiveByCompany(
-    companyId: string,
+  async findAllPaginated(
+    params: FindPropertiesParams,
     ctx?: TransactionContext,
-  ): Promise<Property[]> {
-    const rows = await this.repository(ctx).find({
-      where: { companyId, isDeleted: false },
-      order: { name: 'ASC' },
-    });
-    return rows.map((row) => this.toDomain(row));
+  ): Promise<PaginatedResult<Property>> {
+    const query = this.repository(ctx)
+      .createQueryBuilder('property')
+      .where('property.company_id = :companyId', {
+        companyId: params.companyId,
+      })
+      .andWhere('property.is_deleted = false');
+
+    if (params.search) {
+      query.andWhere('property.name ILIKE :search', {
+        search: `%${params.search}%`,
+      });
+    }
+
+    const [rows, total] = await query
+      .orderBy('property.name', 'ASC')
+      .skip((params.page - 1) * params.pageSize)
+      .take(params.pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map((row) => this.toDomain(row)),
+      total,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
   }
 
   async save(property: Property, ctx?: TransactionContext): Promise<Property> {

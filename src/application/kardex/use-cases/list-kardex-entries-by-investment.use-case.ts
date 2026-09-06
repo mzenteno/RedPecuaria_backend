@@ -12,9 +12,13 @@ import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
+import {
+  PaginationParams,
+  PaginatedResult,
+} from '@domain/common/paginated-result';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
 
-export interface ListKardexEntriesByInvestmentInput {
+export interface ListKardexEntriesByInvestmentInput extends PaginationParams {
   investmentId: string;
   companyId: string;
 }
@@ -32,14 +36,12 @@ export class ListKardexEntriesByInvestmentUseCase {
 
   async execute(
     input: ListKardexEntriesByInvestmentInput,
-  ): Promise<KardexEntry[]> {
+  ): Promise<PaginatedResult<KardexEntry>> {
     await assertInvestmentOwnership(input.investmentId, input.companyId, {
       investmentRepository: this.investmentRepository,
       propertyRepository: this.propertyRepository,
     });
 
-    return this.kardexEntryRepository.findActiveByInvestment(
-      input.investmentId,
-    );
+    return this.kardexEntryRepository.findActiveByInvestment(input);
   }
 }

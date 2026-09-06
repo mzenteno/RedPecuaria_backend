@@ -8,6 +8,7 @@ import { AuthModule } from '@infrastructure/auth/auth.module';
 import { PropertyModule } from '@infrastructure/property/property.module';
 import { InvestmentModule } from '@infrastructure/investment/investment.module';
 import { KardexModule } from '@infrastructure/kardex/kardex.module';
+import { DashboardModule } from '@infrastructure/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { KardexModule } from '@infrastructure/kardex/kardex.module';
     PropertyModule,
     InvestmentModule,
     KardexModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

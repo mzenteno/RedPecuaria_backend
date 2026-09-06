@@ -34,8 +34,12 @@ erDiagram
   [2026-09-01](../user/changes/2026-09-01-username-como-login.md)) — `username` es el
   identificador único de `User`, el email puede repetirse.
 - **Access token**: corto (15 min por defecto), firmado, contiene `sub` (userId), `companyId`,
-  `roleId`, `email`, `isSuperAdmin` (booleano, ver `docs/user-type/user-type.md`). No se
-  persiste — se valida solo con la firma.
+  `roleId`, `email`, `username`, `fullName`, `isSuperAdmin` e `isInvestor` (ambos booleanos, ver
+  `docs/user-type/user-type.md` — mutuamente excluyentes, todo usuario tiene exactamente un
+  `UserType`). No se persiste — se valida solo con la firma. `username` y `fullName` se copian
+  del `User` al emitir el token (login, refresh, `switch-company`) — si el usuario cambia su
+  nombre, se ve recién en su próxima emisión de token, igual criterio que `isSuperAdmin`/
+  `isInvestor`.
 - **Refresh token**: opaco (no es un JWT), se guarda **hasheado** (SHA-256) en
   `refresh_tokens` — nunca en texto plano. Es revocable y **rota en cada uso**: al refrescar,
   se invalida el token usado y se emite uno nuevo.
@@ -91,6 +95,8 @@ conectado).
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-06 — `isInvestor` en el access token, para el dashboard por tipo de usuario](../dashboard/changes/2026-09-06-dashboard-por-tipo-de-usuario.md)
+- [2026-09-04 — `username`/`fullName` en el access token](./changes/2026-09-04-fullname-en-el-token.md)
 - [2026-09-02 — Fase 9: guard global de autenticación](./changes/2026-09-02-fase-9-guard-global.md)
 - [2026-09-01 — Login por `username`, no por email](../user/changes/2026-09-01-username-como-login.md)
 - [2026-08-31 — Fase 8: login, refresh y logout](./changes/2026-08-31-fase-8-login-refresh-logout.md)

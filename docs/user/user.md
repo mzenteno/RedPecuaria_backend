@@ -54,6 +54,7 @@ erDiagram
 | `UpdateUserUseCase` | Edita `email` y `fullName` (`User.updateProfile`) — a propósito no toca `username`, contraseña, ni empresa/rol | `UserNotFoundException` |
 | `DeactivateUserUseCase` | Desactiva un usuario | `UserNotFoundException` |
 | `ChangeUserTypeUseCase` | Cambia el `UserType` de un usuario — valida que pertenezca a la empresa activa de quien hace el cambio | `UserNotFoundException`, `UserTypeNotFoundException` |
+| `ChangeOwnPasswordUseCase` | "Mi perfil": cambia la propia contraseña — exige la actual, `userId` siempre de la sesión (nunca un parámetro, a diferencia de `ChangeUserType`) | `UserNotFoundException`, `InvalidCurrentPasswordException` |
 | `ListUsersUseCase` | Lista usuarios, **paginado**, no incluye dados de baja, filtra por `search` (username/email/fullName) | — |
 
 ## HTTP
@@ -65,6 +66,7 @@ erDiagram
 | `GET /users?page=&pageSize=&search=` | `ListUsersUseCase` — `page` desde 1, `pageSize` 1-100 (default 1/20), `search` opcional (ILIKE sobre username/email/fullName), ver ARCHITECTURE.md §6.1 |
 | `PATCH /users/:id/deactivate` | `DeactivateUserUseCase` (204) |
 | `PATCH /users/:id/user-type` | `ChangeUserTypeUseCase` (204) |
+| `PATCH /users/me/password` | `ChangeOwnPasswordUseCase` (204) — `userId` sale de `@CurrentUser('sub')`, nunca de un `:id`; sin conflicto de ruta con `PATCH /users/:id` (un segmento) al ser `me/password` (dos) |
 
 `UserResponseDto` nunca incluye `passwordHash`.
 
@@ -80,14 +82,26 @@ diferencias a propósito:
 - El diálogo de edición permite tocar `email`, `fullName`, `userTypeId` y `roleId` — los
   últimos dos vía `PATCH /users/:id/user-type` y `PATCH /user-companies/:id/role`
   respectivamente (ver `docs/user-company/user-company.md`), acciones separadas del `PATCH
-  /users/:id` genérico. `username` y la contraseña siguen sin poder editarse: no hay ningún
-  endpoint para eso todavía (cambiar el identificador de login o resetear una contraseña son
-  features que no existen, no una restricción de la pantalla).
+  /users/:id` genérico. `username` sigue sin poder editarse desde ningún lado — ni un
+  administrador editando a otro usuario acá, ni el propio usuario en "Mi perfil" (ver abajo):
+  es el identificador de login, cambiarlo es una feature que no existe todavía.
+- **`app/(main)/profile`** ("Mi perfil", disparado desde el menú del `TopBar`) — sin
+  `RequirePermission` (mismo criterio que `/dashboard`): no es un módulo de negocio con permiso
+  por rol, es una acción sobre uno mismo, disponible para cualquier usuario logueado. Dos
+  tarjetas independientes, cada una con su propio `useMutation`: "Datos personales" (edita
+  `email`/`fullName` reusando el mismo `PATCH /users/:id` de arriba, con el propio id del
+  usuario) y "Cambiar contraseña" (`PATCH /users/me/password`, exige la contraseña actual). El
+  `username` (identificador de login) se ve pero no se puede tocar acá tampoco. `username`/
+  `fullName`/`email` arrancan del token decodificado (mismo criterio que `TopBar`) — tras
+  guardar "Datos personales" con éxito, se actualizan con la respuesta real del backend, no con
+  el token (que queda desactualizado hasta el próximo login/refresh, ver `frontend/
+  ARCHITECTURE.md` §8).
 
 ## Últimos cambios
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-06 — "Mi perfil": editar datos personales y cambiar contraseña](./changes/2026-09-06-mi-perfil.md)
 - [2026-09-03 — Editar usuario, búsqueda de servidor y filtro de dados de baja](./changes/2026-09-03-editar-usuario-y-busqueda.md)
 - [2026-09-02 — Listado de usuarios paginado](./changes/2026-09-02-listar-usuarios-paginado.md)
 - [2026-09-02 — Controladores CRUD + CORS](../company/changes/2026-09-02-controladores-crud.md)

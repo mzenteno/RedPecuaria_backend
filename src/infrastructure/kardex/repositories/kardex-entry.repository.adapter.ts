@@ -2,8 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
-import { KardexEntry } from '@domain/kardex/entities/kardex-entry';
-import { KardexEntryRepository } from '@domain/kardex/repositories/kardex-entry.repository';
+import {
+  KardexEntry,
+  type KardexMovementType,
+} from '@domain/kardex/entities/kardex-entry';
+import {
+  KardexEntryRepository,
+  FindKardexEntriesParams,
+} from '@domain/kardex/repositories/kardex-entry.repository';
+import { PaginatedResult } from '@domain/common/paginated-result';
 import { KardexEntryEntity } from '../entities/kardex-entry.entity';
 
 @Injectable()
@@ -19,14 +26,35 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
   }
 
   async findActiveByInvestment(
-    investmentId: string,
+    params: FindKardexEntriesParams,
     ctx?: TransactionContext,
-  ): Promise<KardexEntry[]> {
-    const rows = await this.repository(ctx).find({
-      where: { investmentId, isDeleted: false },
-      order: { entryDate: 'ASC', createdAt: 'ASC' },
-    });
-    return rows.map((row) => this.toDomain(row));
+  ): Promise<PaginatedResult<KardexEntry>> {
+    const query = this.repository(ctx)
+      .createQueryBuilder('entry')
+      .where('entry.investment_id = :investmentId', {
+        investmentId: params.investmentId,
+      })
+      .andWhere('entry.is_deleted = false');
+
+    if (params.search) {
+      query.andWhere('entry.detail ILIKE :search', {
+        search: `%${params.search}%`,
+      });
+    }
+
+    const [rows, total] = await query
+      .orderBy('entry.entry_date', 'ASC')
+      .addOrderBy('entry.created_at', 'ASC')
+      .skip((params.page - 1) * params.pageSize)
+      .take(params.pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map((row) => this.toDomain(row)),
+      total,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
   }
 
   async save(
@@ -49,6 +77,8 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       investmentId: row.investmentId,
       entryDate: row.entryDate,
       detail: row.detail,
+      movementType: row.movementType as KardexMovementType,
+      investorUserId: row.investorUserId,
       // `numeric` vuelve como string con el driver `pg` — convertir a mano
       // (mismo gotcha que en `Property`, ver ese adapter).
       avgWeight: Number(row.avgWeight),
@@ -73,6 +103,8 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
     row.investmentId = snapshot.investmentId;
     row.entryDate = snapshot.entryDate;
     row.detail = snapshot.detail;
+    row.movementType = snapshot.movementType;
+    row.investorUserId = snapshot.investorUserId;
     row.avgWeight = snapshot.avgWeight;
     row.entryQuantity = snapshot.entryQuantity;
     row.entryKilos = snapshot.entryKilos;

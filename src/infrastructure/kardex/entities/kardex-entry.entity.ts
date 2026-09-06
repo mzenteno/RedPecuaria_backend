@@ -14,6 +14,12 @@ export class KardexEntryEntity {
   @Column({ type: 'varchar', length: 255 })
   detail: string;
 
+  @Column({ name: 'movement_type', type: 'varchar', length: 20 })
+  movementType: string;
+
+  @Column({ name: 'investor_user_id', type: 'bigint', nullable: true })
+  investorUserId: string | null;
+
   @Column({ name: 'avg_weight', type: 'numeric', precision: 10, scale: 2 })
   avgWeight: number;
 

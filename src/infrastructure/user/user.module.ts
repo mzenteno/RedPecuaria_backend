@@ -12,6 +12,7 @@ import { RegisterUserUseCase } from '@application/user/use-cases/register-user.u
 import { UpdateUserUseCase } from '@application/user/use-cases/update-user.use-case';
 import { DeactivateUserUseCase } from '@application/user/use-cases/deactivate-user.use-case';
 import { ChangeUserTypeUseCase } from '@application/user/use-cases/change-user-type.use-case';
+import { ChangeOwnPasswordUseCase } from '@application/user/use-cases/change-own-password.use-case';
 import { ListUserTypesUseCase } from '@application/user/use-cases/list-user-types.use-case';
 import { ListUsersUseCase } from '@application/user/use-cases/list-users.use-case';
 import { UserController } from './http/user.controller';
@@ -41,6 +42,7 @@ import { UserTypeController } from './http/user-type.controller';
     UpdateUserUseCase,
     DeactivateUserUseCase,
     ChangeUserTypeUseCase,
+    ChangeOwnPasswordUseCase,
     ListUserTypesUseCase,
     ListUsersUseCase,
   ],

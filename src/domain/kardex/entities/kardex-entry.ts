@@ -1,3 +1,18 @@
+/**
+ * "ingreso": carga general de ganado a la inversión, sin inversionista
+ * particular. "venta": movimiento de salida atribuido a un inversionista
+ * puntual (a quién se le reparte esa venta). "baja": pérdida/muerte, general
+ * como el ingreso, sin inversionista. Ver docs/investment/investment.md —
+ * catálogo fijo, no administrable, igual criterio que `UserType`.
+ */
+export type KardexMovementType = 'ingreso' | 'venta' | 'baja';
+
+export const KARDEX_MOVEMENT_TYPES: KardexMovementType[] = [
+  'ingreso',
+  'venta',
+  'baja',
+];
+
 export interface KardexEntryPersistence {
   id: string | null;
   investmentId: string;
@@ -8,6 +23,10 @@ export interface KardexEntryPersistence {
    * en husos horarios negativos. */
   entryDate: string;
   detail: string;
+  movementType: KardexMovementType;
+  /** Solo presente si `movementType === 'venta'` — validado contra los
+   * inversionistas de la inversión, ver `assertKardexInvestor`. */
+  investorUserId: string | null;
   avgWeight: number;
   entryQuantity: number;
   entryKilos: number;
@@ -23,6 +42,8 @@ export interface KardexEntryPersistence {
 export interface KardexEntryFields {
   entryDate: string;
   detail: string;
+  movementType: KardexMovementType;
+  investorUserId: string | null;
   avgWeight: number;
   entryQuantity: number;
   entryKilos: number;
@@ -71,6 +92,8 @@ export class KardexEntry {
       {
         entryDate: props.entryDate,
         detail: props.detail,
+        movementType: props.movementType,
+        investorUserId: props.investorUserId,
         avgWeight: props.avgWeight,
         entryQuantity: props.entryQuantity,
         entryKilos: props.entryKilos,

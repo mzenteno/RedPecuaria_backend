@@ -93,7 +93,14 @@ export class SwitchCompanyUseCase {
       companyId: company.id,
       roleId,
       email: user.email.toString(),
+      username: user.username,
+      fullName: user.fullName,
       isSuperAdmin: true,
+      // Fijo en `false`: el guard de arriba ya exige `isSuperAdmin`, y todo
+      // usuario tiene exactamente un `UserType` (ver
+      // `docs/user-type/user-type.md`) — quien llega hasta acá no puede ser
+      // también Inversionista, no hace falta volver a consultar `UserType`.
+      isInvestor: false,
     });
 
     const opaqueRefreshToken = this.tokenGenerator.generateOpaqueToken();

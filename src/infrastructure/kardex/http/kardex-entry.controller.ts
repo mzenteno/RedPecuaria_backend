@@ -19,6 +19,10 @@ import { UpdateKardexEntryRequestDto } from './dto/update-kardex-entry.request.d
 import { ListKardexEntriesQueryDto } from './dto/list-kardex-entries.query.dto';
 import { KardexEntryResponseDto } from './dto/kardex-entry.response.dto';
 import { KardexEntryMapper } from './kardex-entry.mapper';
+import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
 
 /** `investmentId` explícito (igual criterio que `propertyId` en
  * `InvestmentController`) — `companyId` siempre implícito por sesión,
@@ -74,11 +78,23 @@ export class KardexEntryController {
   async list(
     @Query() query: ListKardexEntriesQueryDto,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<KardexEntryResponseDto[]> {
-    const entries = await this.listKardexEntriesByInvestmentUseCase.execute({
+  ): Promise<PaginatedResponseDto<KardexEntryResponseDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const result = await this.listKardexEntriesByInvestmentUseCase.execute({
+      page,
+      pageSize,
       investmentId: query.investmentId,
       companyId,
+      search: query.search,
     });
-    return entries.map((entry) => KardexEntryMapper.toResponse(entry));
+    return {
+      data: result.items.map((entry) => KardexEntryMapper.toResponse(entry)),
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      },
+    };
   }
 }

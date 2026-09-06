@@ -13,12 +13,23 @@ import { CreateInvestmentUseCase } from '@application/investment/use-cases/creat
 import { UpdateInvestmentUseCase } from '@application/investment/use-cases/update-investment.use-case';
 import { DeactivateInvestmentUseCase } from '@application/investment/use-cases/deactivate-investment.use-case';
 import { ListInvestmentsByPropertyUseCase } from '@application/investment/use-cases/list-investments-by-property.use-case';
+import { ListInvestmentsByPropertyPaginatedUseCase } from '@application/investment/use-cases/list-investments-by-property-paginated.use-case';
+import { ListInvestmentsByInvestorUseCase } from '@application/investment/use-cases/list-investments-by-investor.use-case';
+import { ListInvestmentsByGestionUseCase } from '@application/investment/use-cases/list-investments-by-gestion.use-case';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreateInvestmentRequestDto } from './dto/create-investment.request.dto';
 import { UpdateInvestmentRequestDto } from './dto/update-investment.request.dto';
 import { ListInvestmentsQueryDto } from './dto/list-investments.query.dto';
+import { ListInvestmentsByGestionQueryDto } from './dto/list-investments-by-gestion.query.dto';
+import { ListInvestmentsByPropertyPaginatedQueryDto } from './dto/list-investments-by-property-paginated.query.dto';
+import { ListInvestmentsByInvestorQueryDto } from './dto/list-investments-by-investor.query.dto';
+import { ListMyInvestmentsQueryDto } from './dto/list-my-investments.query.dto';
 import { InvestmentResponseDto } from './dto/investment.response.dto';
 import { InvestmentMapper } from './investment.mapper';
+import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
+
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
 
 /**
  * `propertyId` sí es explícito (a diferencia de `companyId`, siempre
@@ -34,6 +45,9 @@ export class InvestmentController {
     private readonly updateInvestmentUseCase: UpdateInvestmentUseCase,
     private readonly deactivateInvestmentUseCase: DeactivateInvestmentUseCase,
     private readonly listInvestmentsByPropertyUseCase: ListInvestmentsByPropertyUseCase,
+    private readonly listInvestmentsByPropertyPaginatedUseCase: ListInvestmentsByPropertyPaginatedUseCase,
+    private readonly listInvestmentsByInvestorUseCase: ListInvestmentsByInvestorUseCase,
+    private readonly listInvestmentsByGestionUseCase: ListInvestmentsByGestionUseCase,
   ) {}
 
   @Post()
@@ -86,5 +100,137 @@ export class InvestmentController {
     return results.map(({ investment, investorIds }) =>
       InvestmentMapper.toResponse(investment, investorIds),
     );
+  }
+
+  /** Para la pantalla de Inversiones: "Gestión" dispara la consulta (de
+   * cualquier propiedad de la empresa), paginado en el servidor —
+   * "Propiedad"/"Inversionista" son filtros opcionales adicionales,
+   * también resueltos en el servidor. */
+  @Get('by-gestion')
+  async listByGestion(
+    @Query() query: ListInvestmentsByGestionQueryDto,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const result = await this.listInvestmentsByGestionUseCase.execute({
+      page,
+      pageSize,
+      gestion: query.gestion,
+      companyId,
+      propertyId: query.propertyId,
+      investorUserId: query.investorUserId,
+      search: query.search,
+    });
+    return {
+      data: result.items.map(({ investment, investorIds }) =>
+        InvestmentMapper.toResponse(investment, investorIds),
+      ),
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      },
+    };
+  }
+
+  /** Para la pantalla de Inversiones: "Propiedad" también dispara la
+   * consulta por sí sola (sin "Gestión" ni "Inversionista" elegidos),
+   * paginado en el servidor — mismo criterio que `by-gestion`/
+   * `by-investor`, con "Gestión"/"Inversionista" como filtros opcionales
+   * adicionales. Distinto de `GET /investments?propertyId=` (sin paginar,
+   * lo sigue usando el atajo "Ver kardex"). */
+  @Get('by-property')
+  async listByProperty(
+    @Query() query: ListInvestmentsByPropertyPaginatedQueryDto,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const result = await this.listInvestmentsByPropertyPaginatedUseCase.execute(
+      {
+        page,
+        pageSize,
+        propertyId: query.propertyId,
+        companyId,
+        gestion: query.gestion,
+        investorUserId: query.investorUserId,
+        search: query.search,
+      },
+    );
+    return {
+      data: result.items.map(({ investment, investorIds }) =>
+        InvestmentMapper.toResponse(investment, investorIds),
+      ),
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      },
+    };
+  }
+
+  /** Para la pantalla de Inversiones: buscar todas las inversiones de un
+   * inversionista puntual, de cualquier gestión y cualquier propiedad —
+   * a diferencia de `mine`, acá `investorUserId` sí es explícito (un
+   * administrador buscando a cualquier inversionista de su empresa, no
+   * "las mías"). Sigue sin ser un hueco de seguridad: ya se puede ver la
+   * misma inversión navegando por "Gestión", esto es solo otra forma de
+   * llegar a la misma información, con la empresa activa igual de
+   * implícita/validada (ver `findByInvestor`). */
+  @Get('by-investor')
+  async listByInvestor(
+    @Query() query: ListInvestmentsByInvestorQueryDto,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const result = await this.listInvestmentsByInvestorUseCase.execute({
+      page,
+      pageSize,
+      investorUserId: query.investorUserId,
+      companyId,
+      propertyId: query.propertyId,
+      search: query.search,
+    });
+    return {
+      data: result.items.map(({ investment, investorIds }) =>
+        InvestmentMapper.toResponse(investment, investorIds),
+      ),
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      },
+    };
+  }
+
+  /** "Mis inversiones" — para la pantalla de Kardex de un usuario tipo
+   * Inversionista. `userId` sale de la sesión (`@CurrentUser('sub')`),
+   * nunca de un parámetro del cliente. */
+  @Get('mine')
+  async listMine(
+    @Query() query: ListMyInvestmentsQueryDto,
+    @CurrentUser('sub') userId: string,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const result = await this.listInvestmentsByInvestorUseCase.execute({
+      page,
+      pageSize,
+      investorUserId: userId,
+      companyId,
+    });
+    return {
+      data: result.items.map(({ investment, investorIds }) =>
+        InvestmentMapper.toResponse(investment, investorIds),
+      ),
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      },
+    };
   }
 }

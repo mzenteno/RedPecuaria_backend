@@ -94,6 +94,13 @@ motivo de cada límite:
   uno" / "sacar uno" como acciones separadas) — se manda la lista completa nueva.
 - Un `KardexEntry` pertenece a **una `Investment`** — se valida la cadena completa
   `KardexEntry → Investment → Property → Company` en cada operación, no solo el primer nivel.
+- Cada `KardexEntry` tiene un `movementType` (catálogo fijo, no administrable): **"ingreso"**
+  (carga general de ganado a la inversión) y **"baja"** (pérdida/muerte) son generales, sin
+  inversionista particular; **"venta"** se atribuye a un inversionista puntual (a quién se le
+  reparte esa venta). `investorUserId` es obligatorio y validado contra la lista de
+  inversionistas de la inversión (`InvestmentRepository.findInvestorIds`) si `movementType ===
+  'venta'`; en cualquier otro caso debe venir vacío — cualquier combinación inválida lanza
+  `InvalidKardexInvestorException` (ver `assertKardexInvestor`).
 
 ## Casos de uso (Application)
 
@@ -104,7 +111,11 @@ motivo de cada límite:
 | `CreateInvestmentUseCase` | Crea la inversión y le asigna sus inversionistas, en una transacción | `PropertyNotFoundException`, `InvestorsRequiredException`, `InvalidInvestorException` |
 | `UpdateInvestmentUseCase` | Actualiza gestión/descripción y reemplaza los inversionistas | `InvestmentNotFoundException`, `InvestorsRequiredException`, `InvalidInvestorException` |
 | `DeactivateInvestmentUseCase` | Desactiva una inversión | `InvestmentNotFoundException` |
-| `ListInvestmentsByPropertyUseCase` | Lista las inversiones activas de una propiedad, con los ids de sus inversionistas | `PropertyNotFoundException` |
+| `ListInvestmentsByPropertyUseCase` | Lista las inversiones activas de una propiedad, con los ids de sus inversionistas (sin paginar) | `PropertyNotFoundException` |
+| `ListInvestmentsByPropertyPaginatedUseCase` | Igual, pero paginado y con `gestion`/`investorUserId` como filtros opcionales — "Propiedad" como único filtro elegido en la pantalla de Inversiones | — |
+| `ListInvestmentsByInvestorUseCase` | "Mis inversiones": las de un usuario como inversionista (`userId` siempre de la sesión), de cualquier propiedad, con los ids de sus inversionistas | — |
+| `ListInvestmentsByGestionUseCase` | Las de una gestión puntual, de cualquier propiedad de la empresa, con los ids de sus inversionistas | — |
+| `ListInvestmentsByInvestorUseCase` | (reusado) Las de un inversionista puntual — elegido por parámetro en `by-investor`, siempre de la sesión en `mine` | — |
 
 ### Kardex
 
@@ -127,28 +138,59 @@ empresa activa en cada caso de uso, nunca se confía en el id a ciegas).
 | `POST /investments` | `CreateInvestmentUseCase` |
 | `PATCH /investments/:id` | `UpdateInvestmentUseCase` |
 | `PATCH /investments/:id/deactivate` | `DeactivateInvestmentUseCase` (204) |
-| `GET /investments?propertyId=` | `ListInvestmentsByPropertyUseCase` |
+| `GET /investments?propertyId=` | `ListInvestmentsByPropertyUseCase` — usado por el atajo "Ver kardex" de la tabla de Inversiones, sin paginar, no por la tabla en sí (ver más abajo) |
+| `GET /investments/by-property?propertyId=&page=&pageSize=&gestion=&investorUserId=&search=` | `ListInvestmentsByPropertyPaginatedUseCase` — "Propiedad" como único filtro elegido en la pantalla de Inversiones, paginado en el servidor |
+| `GET /investments/by-gestion?gestion=&page=&pageSize=&propertyId=&investorUserId=&search=` | `ListInvestmentsByGestionUseCase` — paginado en el servidor |
+| `GET /investments/by-investor?investorUserId=&page=&pageSize=&propertyId=&search=` | `ListInvestmentsByInvestorUseCase` — `investorUserId` explícito (búsqueda de un administrador, no "mis inversiones"), paginado en el servidor |
+| `GET /investments/mine?page=&pageSize=` | `ListInvestmentsByInvestorUseCase` — `userId` sale de `@CurrentUser('sub')`, nunca de un parámetro; paginado en el servidor |
 | `POST /kardex-entries` | `CreateKardexEntryUseCase` |
 | `PATCH /kardex-entries/:id` | `UpdateKardexEntryUseCase` |
 | `PATCH /kardex-entries/:id/deactivate` | `DeactivateKardexEntryUseCase` (204) |
-| `GET /kardex-entries?investmentId=` | `ListKardexEntriesByInvestmentUseCase` |
+| `GET /kardex-entries?investmentId=&page=&pageSize=&search=` | `ListKardexEntriesByInvestmentUseCase` — paginado en el servidor, `search` filtra por `detail` |
+
+`page`/`pageSize`/`search` son el mismo patrón que `GET /users` (ver `docs/auth-sessions` o
+`ARCHITECTURE.md` §8/§9 del backend): `PaginationParams`/`PaginatedResult<T>` en el dominio,
+`PaginatedResponseDto<T>` levantado a `{data, meta}` por el `ResponseInterceptor`. `propertyId`
+e `investorUserId` en `by-gestion`/`by-investor` son filtros de servidor opcionales, no
+`.filter()` del cliente — con paginación real, filtrar solo la página ya traída daría
+resultados incompletos.
 
 ## Pantalla (frontend)
 
-- `app/(main)/investments` — selector de "Propiedad" arriba (igual patrón que "Rol" en
-  Permisos), tabla de inversiones de esa propiedad debajo. El diálogo de alta/edición tiene un
-  combobox de Gestión (años), un campo de Descripción, y un checklist de Inversionistas (solo
-  usuarios de tipo Inversionista de la empresa activa).
+- `app/(main)/investments` — tres filtros, ninguno con una opción "Todos"/"Todas" (regla
+  general del proyecto, ver `frontend/ARCHITECTURE.md` §10), **y los tres disparan la consulta
+  de forma independiente** (`GET /investments/by-gestion?gestion=`, `.../by-investor?
+  investorUserId=` o `.../by-property?propertyId=` — cualquiera de los tres alcanza por sí
+  solo): sin ninguno de los tres elegido, la tabla ni se pide. Con prioridad Gestión >
+  Inversionista > Propiedad cuando hay más de uno elegido a la vez — el (o los) que no dispara
+  la consulta viaja como parámetro extra de esa misma consulta de servidor (sirve para
+  "inversiones de tal inversionista en tal gestión", por ejemplo), nunca como filtro de cliente
+  sobre la página ya traída. Los tres combos tienen un botón "×" para volver a "sin elegir" y
+  dejar de aplicar ese filtro (ver `Select`/`onClear`, `frontend/ARCHITECTURE.md` §9) — antes de
+  esto no había forma de deshacer una elección, y "Propiedad" sola no disparaba nada. Los tres
+  filtros están paginados en el servidor (`page`/`pageSize`, `<Pagination>`) — cambiar
+  cualquiera de los tres resetea la página a 1. "Nueva inversión" solo se ofrece con una
+  Propiedad puntual elegida — crear necesita saber a qué propiedad va, sea cual sea el modo
+  activo. El diálogo de alta/edición tiene un combobox de Gestión (años), un campo de
+  Descripción, y un checklist de Inversionistas (solo usuarios de tipo Inversionista de la
+  empresa activa).
 - `app/(main)/kardex` — pantalla propia del sidebar (menú `kardex`, hermano de `properties` e
   `investments` bajo "Inversiones"), con permiso propio (`canView/canCreate/canEdit/canDelete`)
   independiente del de `investments`: un rol puede tener uno sin el otro (ej. alguien que solo
-  registra movimientos de kardex, sin poder dar de alta inversiones). Elige "Propiedad" e
-  "Inversión" con dos combobox propios (el segundo depende del primero, igual patrón que
-  "Inversiones" elige Propiedad). El botón "Ver kardex" de la tabla de Inversiones sigue
-  existiendo como atajo — navega a `/kardex?propertyId=&investmentId=` para preseleccionar los
-  combobox — y solo se muestra si el rol tiene `canView` sobre `kardex`. Tabla ancha (10
-  columnas + acciones, con scroll horizontal propio) calcada de la planilla de referencia. El
-  diálogo agrupa Cantidad/Kilos de Entrada, Salida y Saldo de a pares, igual que la planilla.
+  registra movimientos de kardex, sin poder dar de alta inversiones). **"Mis inversiones"**: sin
+  ninguna elegida, se muestra una lista clickeable (no un combobox) de las inversiones donde el
+  usuario logueado es inversionista (`GET /investments/mine`, sin filtro de propiedad) — clic en
+  una fila entra a su kardex. El botón "Ver kardex" de la tabla de Inversiones (para quien no es
+  inversionista, ej. un Administrador armando el kardex de cualquier inversión de la empresa)
+  sigue existiendo como atajo — navega a `/kardex?propertyId=&investmentId=` para resolver esa
+  inversión puntual sin pasar por "mis inversiones" — y solo se muestra si el rol tiene
+  `canView` sobre `kardex`. Tabla ancha (10 columnas + acciones, con scroll horizontal propio)
+  calcada de la planilla de referencia. El diálogo agrupa Cantidad/Kilos de Entrada, Salida y
+  Saldo de a pares, igual que la planilla. Dos paginaciones de servidor independientes en la
+  misma pantalla, cada una con su propio estado de página: "Mis inversiones"
+  (`GET /investments/mine?page=&pageSize=`) y, una vez elegida una inversión, sus movimientos
+  de kardex (`GET /kardex-entries?investmentId=&page=&pageSize=&search=`, con buscador
+  server-side por `detail` — antes un `.filter()` en el cliente sobre la lista completa).
 - `entryDate` viaja como `YYYY-MM-DD` (fecha pura, sin hora) en toda la cadena — el frontend
   usa `formatDateOnly` (no el `formatDate` genérico, pensado para timestamps) para mostrarla,
   evitando el bug clásico de que una fecha sin hora se interprete como medianoche UTC y se lea
@@ -158,5 +200,11 @@ empresa activa en cada caso de uso, nunca se confía en el id a ciegas).
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-06 — "Propiedad" también dispara la consulta, y los 3 filtros se pueden limpiar](./changes/2026-09-06-propiedad-como-filtro-independiente.md)
+- [2026-09-05 — Paginación de servidor en Inversiones (3 variantes) y Kardex](./changes/2026-09-05-paginacion-de-servidor.md)
+- [2026-09-04 — El atajo "Ver kardex" no te "saca" de Inversiones](./changes/2026-09-04-sidebar-y-volver-en-atajo-de-kardex.md)
+- [2026-09-04 — Filtro de Gestión en la pantalla de Inversiones](./changes/2026-09-04-filtro-de-gestion-en-inversiones.md)
+- [2026-09-04 — "Mis inversiones" reemplaza el selector de Propiedad en Kardex](./changes/2026-09-04-mis-inversiones-en-kardex.md)
+- [2026-09-04 — Tipo de movimiento e inversionista en Kardex](./changes/2026-09-04-tipo-de-movimiento-e-inversionista-en-kardex.md)
 - [2026-09-04 — Grupo "Inversiones" en el sidebar + permiso propio de Kardex](../menu/changes/2026-09-04-grupo-inversiones-y-kardex.md)
 - [2026-09-04 — Diseño e implementación inicial](./changes/2026-09-04-diseno-inicial.md)

@@ -190,6 +190,14 @@ src/
 - Cada módulo de negocio (`animal`, `auth`, `company`, `user`, ...) es una subcarpeta con el
   mismo nombre repetida en `domain/`, `application/` (cuando tenga casos de uso) e
   `infrastructure/` — nunca una carpeta única que mezcle las tres capas.
+- **Excepción documentada: `dashboard`** — un módulo de solo lectura que resume datos de varios
+  otros (`property`, `investment`, `kardex`, `user`). Su repositorio de infraestructura
+  (`DashboardRepositoryAdapter`) inyecta entidades TypeORM de esos otros módulos directo (vía
+  `TypeOrmModule.forFeature` registrado de nuevo en `dashboard.module.ts`), en vez de pasar por
+  los repositorios de dominio de cada uno — esos exponen operaciones pensadas para su propio
+  CRUD, no los `JOIN`s/agregaciones de un reporte. Es el único módulo del proyecto con este
+  criterio; no es el patrón a seguir para un módulo de negocio nuevo, solo para un futuro
+  segundo modelo de lectura transversal genuino. Ver `docs/dashboard/dashboard.md`.
 - `core/` y `common/` solo alojan código genérico reutilizable (ej. `TransactionManager`,
   excepción base de dominio, filtro HTTP), replicando el mismo patrón: una subcarpeta más
   dentro de cada capa, no una raíz aparte. No deben acumular lógica de negocio de un módulo
@@ -456,3 +464,44 @@ complemento técnico del "por qué" que vive en `docs/`.
   hay excepción por ser "solo un fix".
 - Cambia una regla de negocio → igual que arriba, y además se actualiza la sección de reglas
   de negocio en `<funcionalidad>.md`.
+
+## 12. Entornos y despliegue
+
+Tres bases de datos posibles, nunca mezcladas:
+
+| Entorno | Base | `.env` | Uso |
+|---|---|---|---|
+| Desarrollo local | Postgres local, `RedPecuaria` | El `.env` de siempre, sin tocar | Trabajo diario (`npm run start:dev`) |
+| Verificación manual de un CRUD | Postgres local, `RedPecuariaTest` | Variables de shell antepuestas al comando (ver `.env.test.example`) | Round-trips create/editar/eliminar sin ensuciar la base real — ver §8 |
+| Producción | Neon (Postgres administrado) | Variables de shell antepuestas (uso puntual, ej. migraciones) **o** dashboard de Render (la app desplegada) | La app real, accesible desde internet |
+
+En los tres casos es la **misma** variable (`DB_HOST`, `DB_NAME`, etc.) — lo que cambia es de
+dónde sale su valor en cada momento, nunca el archivo `.env` en sí:
+
+- **Local**: valores fijos en `.env` (gitignoreado).
+- **Un comando puntual contra otra base** (test o Neon): las variables se anteponen al comando
+  en el shell — dotenv no pisa una variable ya seteada en el entorno, así que ganan sobre lo
+  que diga `.env`, solo para esa ejecución. Nunca se edita `.env` para esto. Ver
+  `.env.test.example` / `.env.neon.example`.
+- **Render (producción desplegada)**: las variables se cargan en el dashboard de Render
+  ("Environment"), nunca en un archivo — no existe ningún `.env` en el servidor. Nest lee
+  `process.env` directo (`ConfigModule.forRoot` no necesita que exista un archivo `.env` para
+  funcionar).
+
+**`DB_SSL=true`** (además de las 5 variables de conexión de siempre): necesario contra
+cualquier Postgres administrado (Neon, el Postgres de Render, Supabase) — exigen SSL con un
+certificado que Node no reconoce por default, de ahí el `rejectUnauthorized: false` en
+`app.module.ts`/`data-source.ts`. En local queda en `false` (o sin setear), sin cambios.
+
+Stack de despliegue elegido (gratis): **Vercel** (frontend Next.js) + **Render** (backend,
+free tier con sleep tras 15 min de inactividad) + **Neon** (Postgres, sin fecha de expiración
+— a diferencia del Postgres gratis de Render, que borra la base a los 30 días).
+
+**Migraciones en producción**: no son automáticas al arrancar el backend (`app.module.ts` no
+tiene `migrationsRun: true`, a propósito). Decisión: usar el **"Pre-Deploy Command"** de Render
+(`npm run migration:run`) — corre una sola vez por deploy, antes de que la nueva versión reciba
+tráfico, visible en los logs de ese deploy. Se evaluaron dos alternativas y se descartaron:
+`migrationsRun: true` (corre en cada arranque del proceso, no solo en deploys — innecesario acá)
+y dejarlo 100% manual para siempre (obliga a acordarse de correr el comando a mano en cada
+deploy que agregue una migración). Ninguna corrida de migración contra una base real (Neon o la
+de desarrollo) se hace sin confirmación explícita — ver `.env.neon.example`.

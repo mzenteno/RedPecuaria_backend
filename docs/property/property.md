@@ -55,19 +55,25 @@ de la sesión), mismo criterio que `Role`/`User`.
 | `POST /properties` | `CreatePropertyUseCase` |
 | `PATCH /properties/:id` | `UpdatePropertyUseCase` |
 | `PATCH /properties/:id/deactivate` | `DeactivatePropertyUseCase` (204) |
-| `GET /properties` | `ListPropertiesByCompanyUseCase` |
+| `GET /properties?page=&pageSize=&search=` | `ListPropertiesByCompanyUseCase` — paginado en el servidor |
 
 ## Pantalla (frontend)
 
-`app/(main)/properties` — mismo patrón que "Empresas" (paginación de cliente, confirmación
-genérica de eliminar), con un campo extra: el selector de ubicación (`LocationMapPicker`,
-Leaflet + OpenStreetMap, sin API key ni costo). Clic en el mapa mueve el marcador; "Ver en
-Google Maps" en la tabla y en el diálogo es solo un link con esas coordenadas
-(`https://www.google.com/maps?q=lat,lng`), no un embed de Google.
+`app/(main)/properties` — mismo patrón que "Empresas" (confirmación genérica de eliminar), con
+un campo extra (selector de ubicación, `LocationMapPicker`, Leaflet + OpenStreetMap, sin API key
+ni costo — clic en el mapa mueve el marcador; "Ver en Google Maps" en la tabla y en el diálogo
+es solo un link con esas coordenadas, `https://www.google.com/maps?q=lat,lng`, no un embed de
+Google) y una diferencia real: **paginación de servidor**, no de cliente
+(`useProperties(page, pageSize, search)`, buscador con debounce de 300ms — mismo patrón que
+`Users`, ver `frontend/ARCHITECTURE.md` §8/§9). Los combobox de Propiedad en Inversiones/Kardex
+no usan ese hook — usan `usePropertyOptions()` (hasta 100 registros de una, sin paginar), porque
+un `<select>` no puede "pasar de página".
 
 ## Últimos cambios
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-05 — Paginación de servidor](../investment/changes/2026-09-05-paginacion-de-servidor.md)
+- [2026-09-04 — Mapa de ubicación más grande](./changes/2026-09-04-mapa-mas-grande.md)
 - [2026-09-04 — Grupo "Inversiones" en el sidebar](../menu/changes/2026-09-04-grupo-inversiones-y-kardex.md)
 - [2026-09-04 — Diseño e implementación inicial](./changes/2026-09-04-diseno-inicial.md)

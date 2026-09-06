@@ -35,6 +35,7 @@ docs/<funcionalidad>/
 | [auth-sessions](./auth-sessions/auth-sessions.md) | Login, JWT, refresh tokens |
 | [property](./property/property.md) | Propiedad (finca ganadera) — primer módulo del negocio en sí |
 | [investment](./investment/investment.md) | Inversión (compra de ganado + inversionistas) y Kardex de movimientos |
+| [dashboard](./dashboard/dashboard.md) | Resumen al loguearse — distinto por tipo de usuario (Inversionista vs. Administrador/Super Administrador) |
 
 ## Modelo de datos completo (visión general)
 

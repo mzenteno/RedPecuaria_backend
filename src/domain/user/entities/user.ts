@@ -104,6 +104,13 @@ export class User {
     this._isDeleted = true;
   }
 
+  /** Recibe el hash ya calculado (`PasswordHasher.hash`, ver
+   * `ChangeOwnPasswordUseCase`) — la entidad nunca hashea contraseñas, eso
+   * es responsabilidad de la capa de aplicación/infraestructura. */
+  changePassword(newPasswordHash: string): void {
+    this._passwordHash = newPasswordHash;
+  }
+
   /** No toca `username` ni `password` — esos tienen su propio flujo (no hay
    * "reset de contraseña" todavía, y el username es el identificador de
    * login, no se reasigna desde acá). */

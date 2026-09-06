@@ -48,6 +48,11 @@ erDiagram
   contra el nombre exacto "Inversionista" — ver la constante `INVESTOR_USER_TYPE_NAME`): solo
   un usuario de este tipo puede aparecer en la lista de inversionistas de una inversión
   (`InvalidInvestorException` si no) — ver `docs/investment/investment.md`.
+- **Qué dashboard ve** (`UserType.isInvestor()`, mismo cálculo de arriba): igual que
+  `isSuperAdmin`, se calcula una sola vez al emitir el access token y viaja como
+  `isInvestor: boolean` en el payload — el frontend lo usa para elegir entre el dashboard de
+  Inversionista (sus propias inversiones) o el de Administrador/Super Administrador (agregados
+  de la empresa activa). Ver `docs/dashboard/dashboard.md`.
 
 ## Casos de uso (Application)
 

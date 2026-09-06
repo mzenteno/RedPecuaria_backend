@@ -4,8 +4,12 @@ import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
+import {
+  PaginationParams,
+  PaginatedResult,
+} from '@domain/common/paginated-result';
 
-export interface ListPropertiesByCompanyInput {
+export interface ListPropertiesByCompanyInput extends PaginationParams {
   companyId: string;
 }
 
@@ -16,7 +20,9 @@ export class ListPropertiesByCompanyUseCase {
     private readonly propertyRepository: PropertyRepository,
   ) {}
 
-  async execute(input: ListPropertiesByCompanyInput): Promise<Property[]> {
-    return this.propertyRepository.findActiveByCompany(input.companyId);
+  async execute(
+    input: ListPropertiesByCompanyInput,
+  ): Promise<PaginatedResult<Property>> {
+    return this.propertyRepository.findAllPaginated(input);
   }
 }

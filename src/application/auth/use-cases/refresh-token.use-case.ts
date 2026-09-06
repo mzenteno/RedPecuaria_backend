@@ -90,6 +90,7 @@ export class RefreshTokenUseCase {
     }
     const userType = await this.userTypeRepository.findById(user.userTypeId);
     const isSuperAdmin = userType?.isSuperAdmin() ?? false;
+    const isInvestor = userType?.isInvestor() ?? false;
 
     const userCompany = await this.userCompanyRepository.findByUserAndCompany(
       stored.userId,
@@ -120,7 +121,10 @@ export class RefreshTokenUseCase {
       companyId: stored.companyId,
       roleId,
       email: user.email.toString(),
+      username: user.username,
+      fullName: user.fullName,
       isSuperAdmin,
+      isInvestor,
     });
 
     const newOpaqueToken = this.tokenGenerator.generateOpaqueToken();

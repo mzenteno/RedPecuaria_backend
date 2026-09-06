@@ -15,10 +15,22 @@ export interface AccessTokenPayload {
    * cualquier otro usuario, siempre viene presente. */
   roleId?: string;
   email: string;
+  /** Copiados del `User` al emitir el token — si cambian, se ven recién en
+   * el próximo login/refresh (mismo criterio que `isSuperAdmin`, ver
+   * abajo). `username` es el identificador de login (`User.username`, ver
+   * docs/user/user.md); `fullName` es el nombre real de la persona. */
+  username: string;
+  fullName: string;
   /** Calculado una vez al emitir el token (`UserType.isSuperAdmin()`) — un
    * Super Administrador ve todas las empresas, el resto solo la de esta
    * sesión (ver `ListCompaniesUseCase`). */
   isSuperAdmin: boolean;
+  /** Calculado una vez al emitir el token (`UserType.isInvestor()`), mismo
+   * criterio que `isSuperAdmin` — el frontend lo usa para elegir qué
+   * dashboard mostrar (ver `docs/dashboard/dashboard.md`). Mutuamente
+   * excluyente con `isSuperAdmin`: todo usuario tiene exactamente un
+   * `UserType` (ver `docs/user-type/user-type.md`). */
+  isInvestor: boolean;
 }
 
 export interface TokenGenerator {

@@ -17,6 +17,7 @@ import {
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
+import { assertKardexInvestor } from '../assert-kardex-investor';
 
 export interface UpdateKardexEntryInput extends KardexEntryFields {
   entryId: string;
@@ -44,10 +45,18 @@ export class UpdateKardexEntryUseCase {
       investmentRepository: this.investmentRepository,
       propertyRepository: this.propertyRepository,
     });
+    await assertKardexInvestor(
+      input.movementType,
+      input.investorUserId,
+      entry.investmentId,
+      this.investmentRepository,
+    );
 
     entry.update({
       entryDate: input.entryDate,
       detail: input.detail,
+      movementType: input.movementType,
+      investorUserId: input.investorUserId,
       avgWeight: input.avgWeight,
       entryQuantity: input.entryQuantity,
       entryKilos: input.entryKilos,

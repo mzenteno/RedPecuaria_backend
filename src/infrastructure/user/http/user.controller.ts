@@ -13,12 +13,14 @@ import { RegisterUserUseCase } from '@application/user/use-cases/register-user.u
 import { UpdateUserUseCase } from '@application/user/use-cases/update-user.use-case';
 import { DeactivateUserUseCase } from '@application/user/use-cases/deactivate-user.use-case';
 import { ChangeUserTypeUseCase } from '@application/user/use-cases/change-user-type.use-case';
+import { ChangeOwnPasswordUseCase } from '@application/user/use-cases/change-own-password.use-case';
 import { ListUsersUseCase } from '@application/user/use-cases/list-users.use-case';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { RegisterUserRequestDto } from './dto/register-user.request.dto';
 import { UpdateUserRequestDto } from './dto/update-user.request.dto';
 import { ChangeUserTypeRequestDto } from './dto/change-user-type.request.dto';
+import { ChangePasswordRequestDto } from './dto/change-password.request.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
 import { UserResponseDto } from './dto/user.response.dto';
 import { UserMapper } from './user.mapper';
@@ -33,6 +35,7 @@ export class UserController {
     private readonly updateUserUseCase: UpdateUserUseCase,
     private readonly deactivateUserUseCase: DeactivateUserUseCase,
     private readonly changeUserTypeUseCase: ChangeUserTypeUseCase,
+    private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
     private readonly listUsersUseCase: ListUsersUseCase,
   ) {}
 
@@ -43,6 +46,27 @@ export class UserController {
   ): Promise<UserResponseDto> {
     const user = await this.registerUserUseCase.execute({ ...dto, companyId });
     return UserMapper.toResponse(user);
+  }
+
+  /**
+   * "Mi perfil" (frontend) — cambia la contraseña del usuario logueado.
+   * `userId` sale siempre de `@CurrentUser('sub')`, nunca de un `:id` en la
+   * URL: así nadie puede cambiarle la contraseña a otro usuario por esta
+   * vía, ni falta ningún chequeo de pertenencia a empresa (a diferencia de
+   * `changeUserType`, ver `ChangeOwnPasswordUseCase`). Sin conflicto de ruta
+   * con `PATCH /users/:id` (un solo segmento) al ser `me/password` (dos).
+   */
+  @Patch('me/password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async changeOwnPassword(
+    @Body() dto: ChangePasswordRequestDto,
+    @CurrentUser('sub') userId: string,
+  ): Promise<void> {
+    await this.changeOwnPasswordUseCase.execute({
+      userId,
+      currentPassword: dto.currentPassword,
+      newPassword: dto.newPassword,
+    });
   }
 
   @Patch(':id')

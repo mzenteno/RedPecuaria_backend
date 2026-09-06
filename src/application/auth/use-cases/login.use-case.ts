@@ -121,7 +121,10 @@ export class LoginUseCase {
       companyId: userCompany.companyId,
       roleId: userCompany.roleId,
       email: user.email.toString(),
+      username: user.username,
+      fullName: user.fullName,
       isSuperAdmin: userType?.isSuperAdmin() ?? false,
+      isInvestor: userType?.isInvestor() ?? false,
     });
 
     const opaqueRefreshToken = this.tokenGenerator.generateOpaqueToken();

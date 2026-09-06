@@ -3,7 +3,13 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
 import { Investment } from '@domain/investment/entities/investment';
-import { InvestmentRepository } from '@domain/investment/repositories/investment.repository';
+import {
+  InvestmentRepository,
+  FindInvestmentsByInvestorParams,
+  FindInvestmentsByGestionParams,
+  FindInvestmentsByPropertyParams,
+} from '@domain/investment/repositories/investment.repository';
+import { PaginatedResult } from '@domain/common/paginated-result';
 import { InvestmentEntity } from '../entities/investment.entity';
 import { InvestmentInvestorEntity } from '../entities/investment-investor.entity';
 
@@ -28,6 +34,154 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
       order: { createdAt: 'DESC' },
     });
     return rows.map((row) => this.toDomain(row));
+  }
+
+  async findByInvestor(
+    params: FindInvestmentsByInvestorParams,
+    ctx?: TransactionContext,
+  ): Promise<PaginatedResult<Investment>> {
+    // Sin relación ORM declarada (mismo criterio que el resto del proyecto,
+    // ver `UserRepositoryAdapter.findAllPaginated`) — joins explícitos
+    // contra `investment_investors` (para filtrar por inversionista) y
+    // `properties` (para validar la empresa, sin confiar en nada del lado
+    // del cliente).
+    const query = this.repository(ctx)
+      .createQueryBuilder('investment')
+      .innerJoin(
+        'investment_investors',
+        'ii',
+        'ii.investment_id = investment.id AND ii.user_id = :investorUserId',
+        { investorUserId: params.investorUserId },
+      )
+      .innerJoin(
+        'properties',
+        'property',
+        'property.id = investment.property_id AND property.company_id = :companyId',
+        { companyId: params.companyId },
+      )
+      .where('investment.is_deleted = false');
+
+    if (params.propertyId) {
+      query.andWhere('investment.property_id = :propertyId', {
+        propertyId: params.propertyId,
+      });
+    }
+    if (params.search) {
+      query.andWhere('investment.description ILIKE :search', {
+        search: `%${params.search}%`,
+      });
+    }
+
+    const [rows, total] = await query
+      .orderBy('investment.created_at', 'DESC')
+      .skip((params.page - 1) * params.pageSize)
+      .take(params.pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map((row) => this.toDomain(row)),
+      total,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
+  }
+
+  async findActiveByCompanyAndGestion(
+    params: FindInvestmentsByGestionParams,
+    ctx?: TransactionContext,
+  ): Promise<PaginatedResult<Investment>> {
+    const query = this.repository(ctx)
+      .createQueryBuilder('investment')
+      .innerJoin(
+        'properties',
+        'property',
+        'property.id = investment.property_id AND property.company_id = :companyId',
+        { companyId: params.companyId },
+      )
+      .where('investment.gestion = :gestion', { gestion: params.gestion })
+      .andWhere('investment.is_deleted = false');
+
+    if (params.propertyId) {
+      query.andWhere('investment.property_id = :propertyId', {
+        propertyId: params.propertyId,
+      });
+    }
+    if (params.investorUserId) {
+      query.innerJoin(
+        'investment_investors',
+        'ii',
+        'ii.investment_id = investment.id AND ii.user_id = :investorUserId',
+        { investorUserId: params.investorUserId },
+      );
+    }
+    if (params.search) {
+      query.andWhere('investment.description ILIKE :search', {
+        search: `%${params.search}%`,
+      });
+    }
+
+    const [rows, total] = await query
+      .orderBy('investment.created_at', 'DESC')
+      .skip((params.page - 1) * params.pageSize)
+      .take(params.pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map((row) => this.toDomain(row)),
+      total,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
+  }
+
+  async findActiveByPropertyPaginated(
+    params: FindInvestmentsByPropertyParams,
+    ctx?: TransactionContext,
+  ): Promise<PaginatedResult<Investment>> {
+    const query = this.repository(ctx)
+      .createQueryBuilder('investment')
+      .innerJoin(
+        'properties',
+        'property',
+        'property.id = investment.property_id AND property.company_id = :companyId',
+        { companyId: params.companyId },
+      )
+      .where('investment.property_id = :propertyId', {
+        propertyId: params.propertyId,
+      })
+      .andWhere('investment.is_deleted = false');
+
+    if (params.gestion) {
+      query.andWhere('investment.gestion = :gestion', {
+        gestion: params.gestion,
+      });
+    }
+    if (params.investorUserId) {
+      query.innerJoin(
+        'investment_investors',
+        'ii',
+        'ii.investment_id = investment.id AND ii.user_id = :investorUserId',
+        { investorUserId: params.investorUserId },
+      );
+    }
+    if (params.search) {
+      query.andWhere('investment.description ILIKE :search', {
+        search: `%${params.search}%`,
+      });
+    }
+
+    const [rows, total] = await query
+      .orderBy('investment.created_at', 'DESC')
+      .skip((params.page - 1) * params.pageSize)
+      .take(params.pageSize)
+      .getManyAndCount();
+
+    return {
+      items: rows.map((row) => this.toDomain(row)),
+      total,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
   }
 
   async save(

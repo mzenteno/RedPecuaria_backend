@@ -269,3 +269,116 @@ registra *qué* se implementó a nivel código; el *por qué* de cada decisión 
   invisible: un rol que solo hace kardex necesita una forma de llegar sin pasar por el CRUD de
   Inversiones. `app/(main)/kardex` (frontend) reemplaza a `app/(main)/investments/[id]/kardex` —
   combobox de Propiedad + Inversión en vez de ruta dinámica por id. Ver `docs/menu/menu.md`.
+- `KardexEntry.movementType` (`'ingreso' | 'venta' | 'baja'`) y `investorUserId` (nullable):
+  solo "venta" admite inversionista, obligatorio y validado contra la lista de inversionistas de
+  la inversión (`assertKardexInvestor`, nueva `InvalidKardexInvestorException`) — "ingreso" y
+  "baja" no admiten ninguno. Migración `AddKardexMovementTypeAndInvestor`. El diálogo de Kardex
+  del frontend agrega el combo "Tipo de movimiento" y muestra/oculta campos según la elección.
+  Ver `docs/investment/investment.md`.
+- `AccessTokenPayload.username`/`fullName`: copiados del `User` al emitir el token (login,
+  refresh, switch-company) — el menú de usuario del frontend (`TopBar`) ahora muestra el
+  `username` (con el que se loguea) en vez del email. Ver `docs/auth-sessions/auth-sessions.md`.
+- `GET /investments/mine` (`ListInvestmentsByInvestorUseCase` +
+  `InvestmentRepository.findByInvestor`): "mis inversiones" del usuario logueado como
+  inversionista, `userId` siempre de la sesión. `app/(main)/kardex` (frontend) ya no elige
+  Propiedad primero — muestra directo una lista clickeable de esas inversiones. Ver
+  `docs/investment/investment.md`.
+- `GET /investments/by-gestion?gestion=` (`ListInvestmentsByGestionUseCase` +
+  `InvestmentRepository.findActiveByCompanyAndGestion`): inversiones de cualquier propiedad de
+  la empresa, para una gestión puntual. `app/(main)/investments` (frontend) invierte los roles
+  de sus dos filtros: "Gestión" ahora dispara la consulta, "Propiedad" pasa a ser un filtro
+  opcional del lado del cliente — ninguno de los dos ofrece una opción "Todos"/"Todas" (regla
+  general del proyecto, ver §10 de `frontend/ARCHITECTURE.md`; dejarlo sin elegir ya significa
+  "sin ese filtro"). `InvestmentTable` agrega la columna "Propiedad". `GET
+  /investments?propertyId=` no cambia — lo sigue usando el atajo "Ver kardex". Ver
+  `docs/investment/investment.md`.
+- `GET /investments/by-investor?investorUserId=` (reusa `ListInvestmentsByInvestorUseCase`, ya
+  existente para `mine`, con un `investorUserId` explícito en vez de la sesión): tercer filtro
+  en `app/(main)/investments`, "Inversionista" — busca todas las inversiones de un inversionista
+  puntual, de cualquier gestión y cualquier propiedad. Con "Gestión" elegida, "Inversionista"
+  viaja como parámetro extra de esa misma consulta de servidor, no como filtro de cliente sobre
+  la página ya traída. Ver `docs/investment/investment.md`.
+- `InvestmentTable` agrega `style={{ minWidth: '64rem' }}` en el `<table>` (mismo patrón que
+  `KardexTable`) — con 6 columnas, el `min-width: 40rem` genérico de `.data-table` ya no
+  alcanzaba y el navegador comprimía/envolvía el texto de las celdas en vez de dejar scrollear
+  horizontal.
+- La fila de filtros de `app/(main)/investments` pasa de `flex flex-wrap` + `max-w-xs w-full`
+  por combo a `grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` — con 3 filtros, cada combo
+  quedaba fijo en 320px sin importar cuánto sobrara al lado, un hueco vacío bien visible en
+  anchos intermedios. Con la grilla, cada combo ocupa el 100% de su columna. Ver §14 de
+  `frontend/ARCHITECTURE.md`.
+- `.data-table` pasa a ser una grilla completa: `border` en la tabla y en cada `th`/`td`
+  (`border-collapse: collapse` para que las líneas no salgan dobles), en vez de solo la línea
+  inferior de antes — así el encabezado también se distingue de las filas a simple vista.
+  Primer intento (fondo propio en `thead`, `--bg-page` y después `--bg-hover`) descartado, el
+  usuario prefirió bordes. Afecta a toda tabla de la app de una sola vez (regla de
+  `.data-table`). Ver §2 de `frontend/ARCHITECTURE.md`.
+- Ícono de "Ver kardex" en `InvestmentTable`: `ClipboardList` (el mismo del ítem "Kardex" del
+  sidebar), en vez de `BookOpen`.
+- Al entrar a `/kardex` por el atajo "Ver kardex" de Inversiones, el sidebar sigue resaltando
+  "Inversiones" (no "Kardex") y el botón "Volver" dice "Volver a Inversiones" — antes de este
+  fix, ambos cambiaban a "Kardex"/"Mis inversiones" aunque conceptualmente seguías en
+  Inversiones. "Volver a Inversiones" además reconstruye los filtros de Gestión/Propiedad que
+  estaban activos (se llevan en la URL) — sin esto, volver dejaba los combos vacíos.
+  `KardexPage`/`InvestmentsPage` le pasan `key={searchParams.toString()}` a su contenido — sin
+  eso, cambiar el query string de la misma ruta (ej. entrar por el atajo y después hacer clic
+  directo en el ítem del sidebar) no remonta el componente en Next, y la pantalla se queda
+  mostrando el estado anterior. Ver §14 de `frontend/ARCHITECTURE.md`.
+- `LocationMapPicker`/`PropertyDialog`: mapa de 260px → 520px de alto, zoom inicial 13 → 15, y
+  el diálogo ensancha a `64rem` (antes usaba el `max-w-md` por defecto, 28rem) — la versión
+  chica no daba suficiente precisión para marcar la ubicación. Ver `docs/property/property.md`.
+- **Paginación de servidor para Propiedades, Inversiones (las 3 variantes) y Kardex** —
+  cerrando la deuda documentada arriba: la excepción de paginación de cliente es **solo**
+  Empresas/Roles/Permisos, todo lo demás debe paginar en el servidor sin importar el volumen
+  esperado. `useProperties()`/`useMyInvestments()` habían copiado por error el criterio de esos
+  3 ("un puñado, no hace falta"); mismo patrón que ya tenía `Users` en los cuatro casos:
+  `PaginationParams`/`PaginatedResult<T>` (`domain/common`), `createQueryBuilder` +
+  `.skip()/.take()/.getManyAndCount()` con `.andWhere()` condicional por filtro,
+  `PaginatedResponseDto<T>` levantado a `{data, meta}` en la raíz por `ResponseInterceptor`,
+  `httpClient.getPaginated<T>()` + `keepPreviousData` (React Query) del lado del cliente,
+  buscador con debounce de 300ms.
+  - `GET /properties` ahora recibe `page`/`pageSize`/`search` (`ListPropertiesByCompanyUseCase`,
+    `PropertyRepository.findAllPaginated`); los combobox de Propiedad en Inversiones/Kardex usan
+    un hook aparte sin paginar, `usePropertyOptions()` (hasta 100, para no romper un `<select>`
+    con "página 2"), mismo criterio que `useInvestorUsers()`.
+  - `GET /investments/mine`, `/investments/by-gestion` y `/investments/by-investor` ahora
+    devuelven `PaginatedResponseDto` (antes la lista completa) — `ListInvestmentsByGestionUseCase`
+    y `ListInvestmentsByInvestorUseCase` extienden `PaginationParams`,
+    `InvestmentRepository.findByInvestor`/`findActiveByCompanyAndGestion` reciben
+    `page`/`pageSize` además de sus filtros existentes.
+  - `GET /kardex-entries?investmentId=` ahora pagina (`ListKardexEntriesByInvestmentUseCase`,
+    `KardexEntryRepository.findActiveByInvestment`) y agrega búsqueda de servidor por `detail`
+    (antes un `.filter()` en el cliente sobre la lista completa, ahora sin sentido con
+    paginación real). `app/(main)/kardex` (frontend) mantiene dos tablas con paginación
+    independiente en la misma pantalla — "Mis inversiones" y, una vez elegida una, sus
+    movimientos — cada una con su propio estado de página.
+  Ver §8/§9/§13/§14 de `frontend/ARCHITECTURE.md`.
+- **"Mi perfil"** (`app/(main)/profile`, disparado desde el `TopBar` — antes "Mi perfil" no
+  navegaba a ningún lado): dos tarjetas, "Datos personales" (edita `email`/`fullName` sobre el
+  propio usuario, reusando `PATCH /users/:id`) y "Cambiar contraseña" (nuevo
+  `PATCH /users/me/password` → `ChangeOwnPasswordUseCase`, exige la contraseña actual). Nueva
+  `User.changePassword(newPasswordHash)` y `InvalidCurrentPasswordException` (401). Sin
+  `RequirePermission` — mismo criterio que `/dashboard`, es una acción sobre uno mismo, no un
+  módulo con permiso por rol. Ver `docs/user/user.md`.
+- **Dashboard real, distinto por tipo de usuario** — reemplaza al dashboard con datos
+  hardcodeados (`mockMeses`, `mockTopInversionistas`, `mockLotesEnAlerta`). Nuevo
+  `AccessTokenPayload.isInvestor` (calculado una vez al emitir el token, mismo criterio que
+  `isSuperAdmin`) decide qué ve el frontend: un Inversionista ve sus propias inversiones
+  (`GET /dashboard/investor-summary`) y un Administrador/Super Administrador ve agregados de la
+  empresa activa (`GET /dashboard/admin-summary`) — nuevo módulo `Dashboard` (backend),
+  `DashboardRepository`/`DashboardRepositoryAdapter` (único repositorio del proyecto que cruza
+  varios agregados: Property, Investment, KardexEntry, User), `GetInvestorDashboardUseCase`,
+  `GetAdminDashboardUseCase`. Ningún KPI usa `KardexEntry.total` sin acotar a
+  `movementType = 'venta'` — ese campo no tiene una fórmula definida todavía (ver
+  `docs/investment/investment.md`), así que no hay ninguna tarjeta de "capital invertido" ni
+  "ganancia". Ver `docs/dashboard/dashboard.md`.
+- **"Propiedad" también dispara la consulta en Inversiones, y los 3 filtros se pueden
+  limpiar** — antes, elegir solo "Propiedad" (sin "Gestión" ni "Inversionista") no mostraba
+  nada, y ningún combo de la pantalla tenía forma de volver a "sin elegir" una vez elegido un
+  valor. Nuevo `GET /investments/by-property?propertyId=&page=&pageSize=&gestion=&
+  investorUserId=&search=` (`ListInvestmentsByPropertyPaginatedUseCase` +
+  `InvestmentRepository.findActiveByPropertyPaginated`) — `activeMode` pasa a
+  `'gestion' | 'investor' | 'property' | null`. Nueva prop `onClear` en `Select` (frontend):
+  agrega un botón "×" que vuelve el combo a "sin elegir", sin reintroducir una opción
+  "Todos"/"Todas" en la lista (la regla general del proyecto sigue vigente). Ver
+  `docs/investment/investment.md`.

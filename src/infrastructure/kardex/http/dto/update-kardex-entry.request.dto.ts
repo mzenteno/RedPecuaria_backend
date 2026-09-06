@@ -1,11 +1,17 @@
 import {
   IsDateString,
+  IsIn,
   IsInt,
   IsNumber,
   IsString,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
+import {
+  KARDEX_MOVEMENT_TYPES,
+  type KardexMovementType,
+} from '@domain/kardex/entities/kardex-entry';
 
 export class UpdateKardexEntryRequestDto {
   @IsDateString()
@@ -14,6 +20,15 @@ export class UpdateKardexEntryRequestDto {
   @IsString()
   @MinLength(1)
   detail: string;
+
+  @IsIn(KARDEX_MOVEMENT_TYPES)
+  movementType: KardexMovementType;
+
+  /** Ver el comentario en `CreateKardexEntryRequestDto`. */
+  @ValidateIf((dto: UpdateKardexEntryRequestDto) => dto.investorUserId !== null)
+  @IsString()
+  @MinLength(1)
+  investorUserId: string | null;
 
   @IsNumber()
   @Min(0)
