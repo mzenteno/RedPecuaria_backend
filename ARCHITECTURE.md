@@ -497,11 +497,32 @@ Stack de despliegue elegido (gratis): **Vercel** (frontend Next.js) + **Render**
 free tier con sleep tras 15 min de inactividad) + **Neon** (Postgres, sin fecha de expiración
 — a diferencia del Postgres gratis de Render, que borra la base a los 30 días).
 
-**Migraciones en producción**: no son automáticas al arrancar el backend (`app.module.ts` no
-tiene `migrationsRun: true`, a propósito). Decisión: usar el **"Pre-Deploy Command"** de Render
-(`npm run migration:run`) — corre una sola vez por deploy, antes de que la nueva versión reciba
-tráfico, visible en los logs de ese deploy. Se evaluaron dos alternativas y se descartaron:
-`migrationsRun: true` (corre en cada arranque del proceso, no solo en deploys — innecesario acá)
-y dejarlo 100% manual para siempre (obliga a acordarse de correr el comando a mano en cada
-deploy que agregue una migración). Ninguna corrida de migración contra una base real (Neon o la
-de desarrollo) se hace sin confirmación explícita — ver `.env.neon.example`.
+**Migraciones en producción**: no son automáticas al arrancar el backend vía `migrationsRun`
+(`app.module.ts` no lo tiene, a propósito). Decisión original: usar el **"Pre-Deploy Command"**
+de Render (`npm run migration:run`, corre una sola vez por deploy, antes de que la nueva
+versión reciba tráfico) — **descartada al implementarla**: esa función es solo para instancias
+pagas ("Pre-Deploy Command is available for paid instances only"), y el plan usado es el free
+tier. Solución real, encontrada un 2026-09-06 tras un 500 en producción (`GET
+/dashboard/admin-summary`, columnas de una migración que nunca corrió contra Neon): **encadenar
+la migración al propio `start:prod`** —
+
+```json
+"start:prod": "npm run migration:run && node dist/main"
+```
+
+Render ya corre `npm run start:prod` como "Start Command" (no hace falta tocar nada del
+dashboard) — así la migración corre **antes** de que la app empiece a escuchar, en cada arranque
+del proceso (deploy nuevo, o el proceso despertando del sleep del free tier). No es un
+problema que corra "de más": `migration:run` primero consulta la tabla `migrations` y no hace
+nada si ya está todo al día (mismo costo que un par de `SELECT`, verificado). Requirió mover
+`ts-node`/`tsconfig-paths`/`typescript` de `devDependencies` a `dependencies` — el CLI de
+TypeORM (`typeorm-ts-node-commonjs`) ejecuta los archivos `.ts` de `src/migrations/` directo, y
+esos paquetes tienen que existir en producción, no solo en build; verificado simulando un
+`npm install --omit=dev` (lo más parecido a como un builder puede instalar en runtime) contra
+`RedPecuariaTest` antes de este cambio. Se evaluaron y descartaron: `migrationsRun: true`
+(corre en cada arranque igual que esta solución, pero mezclado dentro del propio
+`TypeOrmModule.forRootAsync` — menos visible en los logs que un paso explícito antes de
+`node dist/main`) y dejarlo 100% manual para siempre (obliga a acordarse de correr el comando a
+mano en cada deploy que agregue una migración — ya causó el 500 de arriba). Ninguna corrida de
+migración contra una base real (Neon o la de desarrollo) se hace sin confirmación explícita —
+ver `.env.neon.example`.

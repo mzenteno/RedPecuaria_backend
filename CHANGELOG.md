@@ -382,3 +382,13 @@ registra *qué* se implementó a nivel código; el *por qué* de cada decisión 
   agrega un botón "×" que vuelve el combo a "sin elegir", sin reintroducir una opción
   "Todos"/"Todas" en la lista (la regla general del proyecto sigue vigente). Ver
   `docs/investment/investment.md`.
+
+### Fixed
+- **Migraciones en producción sin correr en Render** (causaba 500 en `GET
+  /dashboard/admin-summary`, columnas `movement_type`/`investor_user_id` inexistentes en
+  Neon) — el "Pre-Deploy Command" documentado como solución resultó ser solo para instancias
+  pagas de Render. Nueva solución: `"start:prod": "npm run migration:run && node dist/main"` —
+  corre la migración antes de levantar la app, en cada arranque (deploy o wake del free tier).
+  `ts-node`/`tsconfig-paths`/`typescript` pasan de `devDependencies` a `dependencies` (el CLI de
+  TypeORM los necesita en producción, no solo en build) — verificado con un `npm install
+  --omit=dev` simulado. Ver `ARCHITECTURE.md` §12.
