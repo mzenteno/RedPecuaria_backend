@@ -242,6 +242,12 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
       propertyId: row.propertyId,
       gestion: row.gestion,
       description: row.description,
+      // `numeric` vuelve como string con el driver `pg` — convertir a mano
+      // (mismo gotcha que en `KardexEntry`/`Property`).
+      balanceQuantity: row.balanceQuantity,
+      balanceKilos: Number(row.balanceKilos),
+      total: Number(row.total),
+      isFinished: row.isFinished,
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
     });
@@ -256,6 +262,10 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
     row.propertyId = snapshot.propertyId;
     row.gestion = snapshot.gestion;
     row.description = snapshot.description;
+    row.balanceQuantity = snapshot.balanceQuantity;
+    row.balanceKilos = snapshot.balanceKilos;
+    row.total = snapshot.total;
+    row.isFinished = snapshot.isFinished;
     row.isDeleted = snapshot.isDeleted;
     row.createdAt = snapshot.createdAt;
     return row;

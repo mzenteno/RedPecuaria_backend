@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { KardexEntry } from '@domain/kardex/entities/kardex-entry';
 import {
   KARDEX_ENTRY_REPOSITORY,
   type KardexEntryRepository,
+  type KardexEntryWithRunningBalance,
 } from '@domain/kardex/repositories/kardex-entry.repository';
 import {
   INVESTMENT_REPOSITORY,
@@ -41,7 +41,7 @@ export class ListKardexEntriesByInvestmentUseCase {
 
   async execute(
     input: ListKardexEntriesByInvestmentInput,
-  ): Promise<PaginatedResult<KardexEntry>> {
+  ): Promise<PaginatedResult<KardexEntryWithRunningBalance>> {
     await assertInvestmentOwnership(input.investmentId, input.companyId, {
       investmentRepository: this.investmentRepository,
       propertyRepository: this.propertyRepository,

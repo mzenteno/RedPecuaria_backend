@@ -1,17 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
-import {
-  KardexEntry,
-  type KardexMovementType,
-} from '@domain/kardex/entities/kardex-entry';
+import { KardexEntry } from '@domain/kardex/entities/kardex-entry';
 import {
   KardexEntryRepository,
+  KardexEntryWithRunningBalance,
   FindKardexEntriesParams,
 } from '@domain/kardex/repositories/kardex-entry.repository';
 import { PaginatedResult } from '@domain/common/paginated-result';
 import { KardexEntryEntity } from '../entities/kardex-entry.entity';
+
+interface RunningBalanceRaw {
+  runningBalanceQuantity: string;
+  runningBalanceKilos: string;
+}
 
 @Injectable()
 export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
@@ -28,9 +31,77 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
   async findActiveByInvestment(
     params: FindKardexEntriesParams,
     ctx?: TransactionContext,
-  ): Promise<PaginatedResult<KardexEntry>> {
+  ): Promise<PaginatedResult<KardexEntryWithRunningBalance>> {
+    // Saldo corrido (cantidad/kilos) después de cada movimiento — calculado
+    // acá con una función de ventana SQL sobre TODOS los movimientos activos
+    // de la inversión. Nunca se guarda (ver `KardexEntryWithRunningBalance`).
+    // La fórmula replica `computeMovementDelta` (application/kardex) en
+    // SQL: Ingreso suma cantidad/kilos, Baja solo resta cantidad (no toca
+    // kilos), Venta resta cantidad y kilos.
+    //
+    // Se pagina EN MEMORIA, no con `skip`/`take` de TypeORM: combinar
+    // `skip`/`take` con un `JOIN` hace que TypeORM envuelva la consulta en
+    // una subconsulta que resuelve la página ANTES de aplicar la ventana —
+    // cada página terminaba viendo la función de ventana calculada solo
+    // sobre sus propias filas, no sobre el historial completo (verificado
+    // en vivo, ver el change de este cambio). El historial de UNA inversión
+    // puntual es acotado en la práctica (decenas de filas, no miles) —
+    // paginar acá es un compromiso pragmático razonable, mismo criterio que
+    // el N+1 aceptado en el Dashboard.
+    const query = this.buildFilteredQuery(params, ctx)
+      .addSelect(
+        `SUM(
+          CASE
+            WHEN "movementType"."name" = 'ingreso' THEN entry.entry_quantity
+            ELSE -entry.exit_quantity
+          END
+        ) OVER (ORDER BY entry.entry_date, entry.created_at)`,
+        'runningBalanceQuantity',
+      )
+      .addSelect(
+        `SUM(
+          CASE
+            WHEN "movementType"."name" = 'ingreso' THEN entry.entry_kilos
+            WHEN "movementType"."name" = 'venta' THEN -entry.exit_kilos
+            ELSE 0
+          END
+        ) OVER (ORDER BY entry.entry_date, entry.created_at)`,
+        'runningBalanceKilos',
+      )
+      .orderBy('entry.entry_date', 'ASC')
+      .addOrderBy('entry.created_at', 'ASC');
+
+    const { entities, raw } = await query.getRawAndEntities<RunningBalanceRaw>();
+    const allItems: KardexEntryWithRunningBalance[] = entities.map((row, index) => ({
+      entry: this.toDomain(row),
+      runningBalanceQuantity: Number(raw[index]?.runningBalanceQuantity ?? 0),
+      runningBalanceKilos: Number(raw[index]?.runningBalanceKilos ?? 0),
+    }));
+
+    const start = (params.page - 1) * params.pageSize;
+    return {
+      items: allItems.slice(start, start + params.pageSize),
+      total: allItems.length,
+      page: params.page,
+      pageSize: params.pageSize,
+    };
+  }
+
+  /** Filtros compartidos por el conteo (`getCount`) y la consulta paginada
+   * con saldo corrido — el join a `kardex_movement_types` es incondicional
+   * (no solo cuando hay `restrictSalesToInvestorId`) porque la fórmula del
+   * saldo corrido también necesita el nombre del tipo de movimiento. */
+  private buildFilteredQuery(
+    params: FindKardexEntriesParams,
+    ctx?: TransactionContext,
+  ): SelectQueryBuilder<KardexEntryEntity> {
     const query = this.repository(ctx)
       .createQueryBuilder('entry')
+      .innerJoin(
+        'kardex_movement_types',
+        'movementType',
+        'movementType.id = entry.movement_type_id',
+      )
       .where('entry.investment_id = :investmentId', {
         investmentId: params.investmentId,
       })
@@ -47,24 +118,22 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       // solo "venta" se filtra a las que le corresponden a este
       // inversionista puntual.
       query.andWhere(
-        "(entry.movement_type != 'venta' OR entry.investor_user_id = :restrictSalesToInvestorId)",
+        "(movementType.name != 'venta' OR entry.investor_user_id = :restrictSalesToInvestorId)",
         { restrictSalesToInvestorId: params.restrictSalesToInvestorId },
       );
     }
 
-    const [rows, total] = await query
-      .orderBy('entry.entry_date', 'ASC')
-      .addOrderBy('entry.created_at', 'ASC')
-      .skip((params.page - 1) * params.pageSize)
-      .take(params.pageSize)
-      .getManyAndCount();
+    return query;
+  }
 
-    return {
-      items: rows.map((row) => this.toDomain(row)),
-      total,
-      page: params.page,
-      pageSize: params.pageSize,
-    };
+  async hasAnyActiveEntry(
+    investmentId: string,
+    ctx?: TransactionContext,
+  ): Promise<boolean> {
+    const count = await this.repository(ctx).count({
+      where: { investmentId, isDeleted: false },
+    });
+    return count > 0;
   }
 
   async save(
@@ -87,7 +156,7 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       investmentId: row.investmentId,
       entryDate: row.entryDate,
       detail: row.detail,
-      movementType: row.movementType as KardexMovementType,
+      movementTypeId: row.movementTypeId,
       investorUserId: row.investorUserId,
       // `numeric` vuelve como string con el driver `pg` — convertir a mano
       // (mismo gotcha que en `Property`, ver ese adapter).
@@ -96,8 +165,6 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       entryKilos: Number(row.entryKilos),
       exitQuantity: row.exitQuantity,
       exitKilos: Number(row.exitKilos),
-      balanceQuantity: row.balanceQuantity,
-      balanceKilos: Number(row.balanceKilos),
       total: Number(row.total),
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
@@ -113,15 +180,13 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
     row.investmentId = snapshot.investmentId;
     row.entryDate = snapshot.entryDate;
     row.detail = snapshot.detail;
-    row.movementType = snapshot.movementType;
+    row.movementTypeId = snapshot.movementTypeId;
     row.investorUserId = snapshot.investorUserId;
     row.avgWeight = snapshot.avgWeight;
     row.entryQuantity = snapshot.entryQuantity;
     row.entryKilos = snapshot.entryKilos;
     row.exitQuantity = snapshot.exitQuantity;
     row.exitKilos = snapshot.exitKilos;
-    row.balanceQuantity = snapshot.balanceQuantity;
-    row.balanceKilos = snapshot.balanceKilos;
     row.total = snapshot.total;
     row.isDeleted = snapshot.isDeleted;
     row.createdAt = snapshot.createdAt;

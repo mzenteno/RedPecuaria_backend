@@ -18,6 +18,7 @@ import { CreateKardexEntryRequestDto } from './dto/create-kardex-entry.request.d
 import { UpdateKardexEntryRequestDto } from './dto/update-kardex-entry.request.dto';
 import { ListKardexEntriesQueryDto } from './dto/list-kardex-entries.query.dto';
 import { KardexEntryResponseDto } from './dto/kardex-entry.response.dto';
+import { KardexEntryListItemResponseDto } from './dto/kardex-entry-list-item.response.dto';
 import { KardexEntryMapper } from './kardex-entry.mapper';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 
@@ -80,7 +81,7 @@ export class KardexEntryController {
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('isInvestor') isInvestor: boolean,
     @CurrentUser('sub') userId: string,
-  ): Promise<PaginatedResponseDto<KardexEntryResponseDto>> {
+  ): Promise<PaginatedResponseDto<KardexEntryListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listKardexEntriesByInvestmentUseCase.execute({
@@ -93,7 +94,7 @@ export class KardexEntryController {
       viewerUserId: userId,
     });
     return {
-      data: result.items.map((entry) => KardexEntryMapper.toResponse(entry)),
+      data: result.items.map((item) => KardexEntryMapper.toListResponse(item)),
       meta: {
         total: result.total,
         page: result.page,

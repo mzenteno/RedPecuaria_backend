@@ -1,18 +1,3 @@
-/**
- * "ingreso": carga general de ganado a la inversión, sin inversionista
- * particular. "venta": movimiento de salida atribuido a un inversionista
- * puntual (a quién se le reparte esa venta). "baja": pérdida/muerte, general
- * como el ingreso, sin inversionista. Ver docs/investment/investment.md —
- * catálogo fijo, no administrable, igual criterio que `UserType`.
- */
-export type KardexMovementType = 'ingreso' | 'venta' | 'baja';
-
-export const KARDEX_MOVEMENT_TYPES: KardexMovementType[] = [
-  'ingreso',
-  'venta',
-  'baja',
-];
-
 export interface KardexEntryPersistence {
   id: string | null;
   investmentId: string;
@@ -23,17 +8,25 @@ export interface KardexEntryPersistence {
    * en husos horarios negativos. */
   entryDate: string;
   detail: string;
-  movementType: KardexMovementType;
-  /** Solo presente si `movementType === 'venta'` — validado contra los
-   * inversionistas de la inversión, ver `assertKardexInvestor`. */
+  /** FK a `kardex_movement_types` (catálogo cerrado, ver
+   * `domain/kardex/entities/movement-type.ts`) — nunca un string literal
+   * acá, mismo criterio que `User.userTypeId`. */
+  movementTypeId: string;
+  /** Solo presente si el tipo de movimiento es "venta" — validado contra
+   * los inversionistas de la inversión, ver `assertKardexInvestor`. */
   investorUserId: string | null;
   avgWeight: number;
+  /** Ingreso: carga cantidad y kilos. Baja: solo cantidad (`exitQuantity`),
+   * no toca kilos. Venta: cantidad y kilos de salida. Ver
+   * `computeMovementDelta` en `application/kardex` para el detalle exacto
+   * por tipo. */
   entryQuantity: number;
   entryKilos: number;
   exitQuantity: number;
   exitKilos: number;
-  balanceQuantity: number;
-  balanceKilos: number;
+  /** Dato que tipea el usuario, solo en Ingreso y Venta (0 en Baja) — no se
+   * deriva de nada. Se acumula en `Investment.total`, ver
+   * `computeMovementDelta`. */
   total: number;
   isDeleted: boolean;
   createdAt: Date;
@@ -42,24 +35,23 @@ export interface KardexEntryPersistence {
 export interface KardexEntryFields {
   entryDate: string;
   detail: string;
-  movementType: KardexMovementType;
+  movementTypeId: string;
   investorUserId: string | null;
   avgWeight: number;
   entryQuantity: number;
   entryKilos: number;
   exitQuantity: number;
   exitKilos: number;
-  balanceQuantity: number;
-  balanceKilos: number;
   total: number;
 }
 
 /**
  * Una fila del kardex de inventario de ganado de una `Investment` — ver la
- * planilla de referencia en docs/investment/investment.md. Fase 1
- * deliberadamente sin ningún cálculo: todos los campos los tipea el
- * usuario a mano, ni los saldos corridos ni el `total` se derivan de nada
- * acá — eso queda para una fase futura.
+ * planilla de referencia en docs/investment/investment.md. Es un log puro:
+ * no guarda saldo corrido propio (`balanceQuantity`/`balanceKilos` viven en
+ * `Investment`, ver ese archivo) — todos los campos acá son los que tipea
+ * el usuario para ESE movimiento puntual, nada se deriva dentro de esta
+ * entidad.
  */
 export class KardexEntry {
   private constructor(
@@ -92,15 +84,13 @@ export class KardexEntry {
       {
         entryDate: props.entryDate,
         detail: props.detail,
-        movementType: props.movementType,
+        movementTypeId: props.movementTypeId,
         investorUserId: props.investorUserId,
         avgWeight: props.avgWeight,
         entryQuantity: props.entryQuantity,
         entryKilos: props.entryKilos,
         exitQuantity: props.exitQuantity,
         exitKilos: props.exitKilos,
-        balanceQuantity: props.balanceQuantity,
-        balanceKilos: props.balanceKilos,
         total: props.total,
       },
       props.isDeleted,

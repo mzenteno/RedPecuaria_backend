@@ -14,8 +14,8 @@ export class KardexEntryEntity {
   @Column({ type: 'varchar', length: 255 })
   detail: string;
 
-  @Column({ name: 'movement_type', type: 'varchar', length: 20 })
-  movementType: string;
+  @Column({ name: 'movement_type_id', type: 'bigint' })
+  movementTypeId: string;
 
   @Column({ name: 'investor_user_id', type: 'bigint', nullable: true })
   investorUserId: string | null;
@@ -46,18 +46,6 @@ export class KardexEntryEntity {
     default: 0,
   })
   exitKilos: number;
-
-  @Column({ name: 'balance_quantity', type: 'integer', default: 0 })
-  balanceQuantity: number;
-
-  @Column({
-    name: 'balance_kilos',
-    type: 'numeric',
-    precision: 12,
-    scale: 2,
-    default: 0,
-  })
-  balanceKilos: number;
 
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   total: number;

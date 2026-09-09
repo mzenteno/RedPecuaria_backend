@@ -21,6 +21,8 @@ interface InvestorInvestmentRow {
   gestion: number;
   description: string;
   propertyName: string;
+  balanceQuantity: number;
+  balanceKilos: string;
 }
 
 /**
@@ -69,37 +71,27 @@ export class DashboardRepositoryAdapter implements DashboardRepository {
       .addSelect('investment.gestion', 'gestion')
       .addSelect('investment.description', 'description')
       .addSelect('property.name', 'propertyName')
+      // Saldo vigente, leído directo de `Investment` (ya no hace falta
+      // buscar la "última fila" del kardex — desde que el saldo se mantiene
+      // transaccionalmente en cada movimiento, ver
+      // `Investment.applyBalanceDelta`, esto reemplaza a la consulta N+1
+      // que había acá antes).
+      .addSelect('investment.balance_quantity', 'balanceQuantity')
+      .addSelect('investment.balance_kilos', 'balanceKilos')
       .orderBy('investment.gestion', 'DESC')
       .addOrderBy('investment.id', 'DESC')
       .getRawMany<InvestorInvestmentRow>();
 
-    // Un usuario suele participar de un puñado de inversiones (no cientos),
-    // así que una consulta más por inversión (el "último" movimiento de su
-    // kardex) es aceptable acá — mismo criterio pragmático que
-    // `useInvestorUsers` en el frontend ("v1 shortcut", ver ARCHITECTURE.md).
-    // Si esto llega a pesar de verdad, se reemplaza por un `DISTINCT ON`
-    // (Postgres) en una sola consulta.
-    const investments: InvestorInvestmentSummary[] = [];
-    for (const row of investmentRows) {
-      const lastEntry = await this.kardexRepository
-        .createQueryBuilder('entry')
-        .where('entry.investment_id = :investmentId', {
-          investmentId: row.investmentId,
-        })
-        .andWhere('entry.is_deleted = false')
-        .orderBy('entry.entry_date', 'DESC')
-        .addOrderBy('entry.created_at', 'DESC')
-        .getOne();
-
-      investments.push({
+    const investments: InvestorInvestmentSummary[] = investmentRows.map(
+      (row) => ({
         investmentId: row.investmentId,
         propertyName: row.propertyName,
         gestion: row.gestion,
         description: row.description,
-        currentBalanceQuantity: lastEntry?.balanceQuantity ?? 0,
-        currentBalanceKilos: lastEntry ? Number(lastEntry.balanceKilos) : 0,
-      });
-    }
+        currentBalanceQuantity: Number(row.balanceQuantity ?? 0),
+        currentBalanceKilos: Number(row.balanceKilos ?? 0),
+      }),
+    );
 
     const totalSalesReceived = await this.sumSales(companyId, { userId });
 
@@ -193,10 +185,13 @@ export class DashboardRepositoryAdapter implements DashboardRepository {
         'property.id = investment.property_id AND property.company_id = :companyId AND property.is_deleted = false',
         { companyId },
       )
+      .innerJoin(
+        'kardex_movement_types',
+        'movementType',
+        'movementType.id = entry.movement_type_id',
+      )
       .where('entry.is_deleted = false')
-      .andWhere('entry.movement_type = :movementType', {
-        movementType: 'venta',
-      });
+      .andWhere("movementType.name = 'venta'");
 
     if (filter?.userId) {
       query.andWhere('entry.investor_user_id = :userId', {
@@ -227,10 +222,13 @@ export class DashboardRepositoryAdapter implements DashboardRepository {
         { companyId },
       )
       .innerJoin('users', 'user', 'user.id = entry.investor_user_id')
+      .innerJoin(
+        'kardex_movement_types',
+        'movementType',
+        'movementType.id = entry.movement_type_id',
+      )
       .where('entry.is_deleted = false')
-      .andWhere('entry.movement_type = :movementType', {
-        movementType: 'venta',
-      })
+      .andWhere("movementType.name = 'venta'")
       .select('entry.investor_user_id', 'userId')
       .addSelect('user.full_name', 'fullName')
       .addSelect('SUM(entry.total)', 'totalSalesReceived')
@@ -267,6 +265,11 @@ export class DashboardRepositoryAdapter implements DashboardRepository {
         'property.id = investment.property_id AND property.company_id = :companyId AND property.is_deleted = false',
         { companyId },
       )
+      .innerJoin(
+        'kardex_movement_types',
+        'movementType',
+        'movementType.id = entry.movement_type_id',
+      )
       .where('entry.is_deleted = false')
       .select('entry.id', 'id')
       // `TO_CHAR` en vez del valor crudo: `getRawMany()` no pasa por la
@@ -277,7 +280,7 @@ export class DashboardRepositoryAdapter implements DashboardRepository {
       // del resto de la app (ver `docs/investment/investment.md`).
       .addSelect("TO_CHAR(entry.entry_date, 'YYYY-MM-DD')", 'entryDate')
       .addSelect('entry.detail', 'detail')
-      .addSelect('entry.movement_type', 'movementType')
+      .addSelect('movementType.name', 'movementType')
       .addSelect('entry.total', 'total')
       .addSelect('property.name', 'propertyName')
       .addSelect('investment.description', 'investmentDescription')

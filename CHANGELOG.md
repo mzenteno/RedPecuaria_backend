@@ -382,6 +382,44 @@ registra *qué* se implementó a nivel código; el *por qué* de cada decisión 
   agrega un botón "×" que vuelve el combo a "sin elegir", sin reintroducir una opción
   "Todos"/"Todas" en la lista (la regla general del proyecto sigue vigente). Ver
   `docs/investment/investment.md`.
+- **El saldo de una inversión (`balanceQuantity`/`balanceKilos`/`total`) pasa de
+  `kardex_entries` a `investments`** — antes era una foto por fila del kardex, cargada a mano;
+  ahora es el saldo VIGENTE de la inversión, mantenido transaccionalmente en cada alta/edición/
+  baja de un `KardexEntry` (nuevo `Investment.applyBalanceDelta`, `computeMovementDelta` en
+  `application/kardex`). Ingreso suma cantidad/kilos/total; Baja solo resta cantidad (no toca
+  kilos); Venta resta cantidad/kilos y suma total. Nueva validación: la primera fila activa de
+  una inversión siempre tiene que ser "ingreso" (`FirstKardexEntryMustBeIngresoException`) y
+  ningún movimiento puede dejar el saldo en negativo
+  (`InsufficientInvestmentBalanceException`). Migración `MoveKardexBalanceToInvestment`, sin
+  migrar datos existentes. Verificado en vivo contra `RedPecuariaTest`: ingreso, baja, venta,
+  rechazo por saldo insuficiente, reversión completa al desactivar y delta neto correcto al
+  editar. Ver `docs/investment/investment.md`.
+- **`KardexEntry.movementType` deja de ser un `varchar(20)` con el texto literal y pasa a
+  `movementTypeId`, FK a la tabla nueva `kardex_movement_types`** — mismo patrón que
+  `UserType`/`user_types` (catálogo cerrado sembrado por migración, sin CRUD propio, solo
+  `GET /kardex-movement-types` para listar). Nuevo dominio `MovementType`
+  (`isIngreso()`/`isVenta()`/`isBaja()`), `MovementTypeRepository` + adapter,
+  `MovementTypeNotFoundException`. `assertKardexInvestor`/`computeMovementDelta` reciben el
+  `MovementType` ya resuelto en vez de comparar strings. Migración
+  `AddKardexMovementTypesTable`, con backfill real de los datos existentes (a diferencia del
+  cambio de saldo anterior). Verificado en vivo contra `RedPecuariaTest`: backfill correcto de
+  filas preexistentes, rechazo de un `movementTypeId` inexistente, y el ciclo completo de
+  crear/editar/desactivar con el nuevo contrato. Ver `docs/investment/investment.md`.
+- **`GET /kardex-entries` agrega el saldo corrido (cantidad/kilos) de cada fila**
+  (`runningBalanceQuantity`/`runningBalanceKilos`) — el histórico "cuánto quedaba después de este
+  movimiento puntual" que se ve en la planilla Excel de referencia, calculado al leer con una
+  función de ventana SQL sobre todo el historial activo de la inversión, nunca guardado. Nuevo
+  `KardexEntryListItemResponseDto` (solo para el listado; `POST`/`PATCH` no cambian). Se pagina en
+  memoria, no con `LIMIT`/`OFFSET` de SQL — se encontró y corrigió en vivo un bug real de TypeORM
+  (combinar `skip`/`take` con un `JOIN` corta la ventana antes de calcularla, dejando cada página
+  con el acumulado de sus propias filas nomás). Verificado con `pageSize=1` en las 3 páginas de
+  una inversión de prueba. Ver `docs/investment/investment.md`.
+- **`Investment.isFinished`** — estado de negocio (Activa/Terminada), elegido a mano por el
+  usuario desde el diálogo de edición (nuevo combo "Estado", solo visible al editar). Distinto de
+  `isDeleted`: una inversión terminada sigue totalmente visible y operable. Migración
+  `AddIsFinishedToInvestments`, siempre `false` al crear. `InvestmentTable` agrega la columna
+  "Estado" con una etiqueta de color. Verificado en vivo contra `RedPecuariaTest`. Ver
+  `docs/investment/investment.md`.
 
 ### Fixed
 - **Migraciones en producción sin correr en Render** (causaba 500 en `GET

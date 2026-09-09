@@ -19,11 +19,16 @@ erDiagram
     INVESTMENT ||--o{ INVESTMENT_INVESTOR : "tiene"
     USER ||--o{ INVESTMENT_INVESTOR : "participa en"
     INVESTMENT ||--o{ KARDEX_ENTRY : "registra"
+    MOVEMENT_TYPE ||--o{ KARDEX_ENTRY : "clasifica"
     INVESTMENT {
         bigint id
         bigint propertyId
         int gestion
         string description
+        int balanceQuantity
+        numeric balanceKilos
+        numeric total
+        boolean isFinished
         boolean isDeleted
         datetime createdAt
     }
@@ -37,14 +42,20 @@ erDiagram
         bigint investmentId
         date entryDate
         string detail
+        bigint movementTypeId
+        bigint investorUserId
         numeric avgWeight
         int entryQuantity
         numeric entryKilos
         int exitQuantity
         numeric exitKilos
-        int balanceQuantity
-        numeric balanceKilos
         numeric total
+        boolean isDeleted
+        datetime createdAt
+    }
+    MOVEMENT_TYPE {
+        bigint id
+        string name
         boolean isDeleted
         datetime createdAt
     }
@@ -68,10 +79,11 @@ motivo de cada límite:
   encabezado de la planilla de referencia) **es fijo para toda la app** — pero todavía no se
   usa en ningún lado del sistema. No hay ninguna entidad ni configuración para esto en el
   código todavía; queda para cuando exista el cálculo de reparto de ganancias.
-- **Sin cálculo de saldos corridos**: en la planilla de referencia, "Saldos" es la cantidad y
-  kilos que quedan después de cada movimiento — acá también lo tipea el usuario a mano, el
-  sistema no lo deriva de las filas anteriores. Mismo criterio para todos los demás campos:
-  nada se calcula, todo es carga de datos.
+- ~~Sin cálculo de saldos corridos~~ — **revisado el 2026-09-08**: el saldo (`balanceQuantity`/
+  `balanceKilos`) y `total` ahora sí se calculan, pero no por fila de kardex — viven en
+  `Investment` como el saldo VIGENTE, mantenido transaccionalmente en cada alta/edición/baja de
+  un `KardexEntry` (ver "Reglas de negocio actuales" y `changes/2026-09-08-saldo-en-inversion-
+  no-en-kardex.md`). `kardex_entries` queda como log puro de movimientos.
 - **Sin atribuir un movimiento de kardex a un inversionista puntual** — la planilla de
   referencia asigna cada venta a uno de los inversionistas del fondo (columna con las
   iniciales OVD/ET/JJ); acá esa columna no existe todavía. Los inversionistas están a nivel de
@@ -86,6 +98,13 @@ motivo de cada límite:
   ella) — sin `companyId` propio. La propiedad **sí se puede cambiar** al editar
   (`UpdateInvestmentUseCase` valida que la nueva propiedad sea de la empresa activa, mismo
   chequeo que al crear — `PropertyNotFoundException` si no).
+- **`isFinished`** (desde 2026-09-08): estado de negocio (Activa/Terminada), **elegido a mano por
+  el usuario** desde el diálogo de edición — nada lo calcula ni lo fuerza automáticamente. La
+  idea de uso es marcar una inversión como Terminada cuando `balanceQuantity` llega a 0 (se
+  vendió todo el stock del ingreso), pero el sistema no valida ni exige eso — es solo una
+  etiqueta informativa. Distinto de `isDeleted`: una inversión terminada sigue **totalmente
+  visible y operable** (se le puede seguir registrando kardex, editarla, etc.), a diferencia de
+  una desactivada. Arranca siempre en `false` al crear — no es un campo de alta, solo de edición.
 - Necesita **al menos un inversionista** (`InvestorsRequiredException` si la lista viene vacía).
 - Un inversionista tiene que ser: un usuario que exista, de tipo **Inversionista**
   (`UserType.isInvestor()`, ver `docs/user-type/user-type.md`), y que pertenezca (con
@@ -96,13 +115,40 @@ motivo de cada límite:
   uno" / "sacar uno" como acciones separadas) — se manda la lista completa nueva.
 - Un `KardexEntry` pertenece a **una `Investment`** — se valida la cadena completa
   `KardexEntry → Investment → Property → Company` en cada operación, no solo el primer nivel.
-- Cada `KardexEntry` tiene un `movementType` (catálogo fijo, no administrable): **"ingreso"**
-  (carga general de ganado a la inversión) y **"baja"** (pérdida/muerte) son generales, sin
-  inversionista particular; **"venta"** se atribuye a un inversionista puntual (a quién se le
-  reparte esa venta). `investorUserId` es obligatorio y validado contra la lista de
-  inversionistas de la inversión (`InvestmentRepository.findInvestorIds`) si `movementType ===
-  'venta'`; en cualquier otro caso debe venir vacío — cualquier combinación inválida lanza
-  `InvalidKardexInvestorException` (ver `assertKardexInvestor`).
+- Cada `KardexEntry` tiene un `movementTypeId` — FK a `kardex_movement_types` (catálogo cerrado,
+  sembrado por migración, sin CRUD propio, solo `GET /kardex-movement-types` para listar; mismo
+  criterio que `UserType`/`user_types`, ver `domain/kardex/entities/movement-type.ts`). Tres
+  filas fijas: **"ingreso"** (carga general de ganado a la inversión) y **"baja"**
+  (pérdida/muerte) son generales, sin inversionista particular; **"venta"** se atribuye a un
+  inversionista puntual (a quién se le reparte esa venta). `investorUserId` es obligatorio y
+  validado contra la lista de inversionistas de la inversión
+  (`InvestmentRepository.findInvestorIds`) si el tipo de movimiento es "venta"
+  (`MovementType.isVenta()`); en cualquier otro caso debe venir vacío — cualquier combinación
+  inválida lanza `InvalidKardexInvestorException` (ver `assertKardexInvestor`, que recibe el
+  `MovementType` ya resuelto, no un id ni un string).
+- **Saldo vigente en `Investment`, no en `kardex_entries`** (desde 2026-09-08): cada tipo de
+  movimiento carga campos distintos y afecta el saldo distinto —
+  **Ingreso** (`entryQuantity`+`entryKilos`+`total`, dato manual) suma cantidad, kilos y total;
+  **Baja** (`exitQuantity` solamente) resta cantidad, **no toca kilos** (no pide kilos como
+  input); **Venta** (`exitQuantity`+`exitKilos`+`total`, dato manual) resta cantidad y kilos, y
+  suma su `total`. La traducción movimiento → delta vive en `computeMovementDelta`
+  (`application/kardex`); quién aplica el delta y nunca deja `balanceQuantity`/`balanceKilos`
+  negativo es `Investment.applyBalanceDelta` (`InsufficientInvestmentBalanceException` si no
+  alcanza). **La primera transacción activa de una inversión siempre tiene que ser "ingreso"**
+  (`FirstKardexEntryMustBeIngresoException` si no) — no puede haber una Baja o Venta sin stock
+  previo. Editar o desactivar un `KardexEntry` revierte/recalcula el efecto sobre el saldo en la
+  misma transacción (delta neto al editar, delta invertido al desactivar).
+- **Saldo corrido por fila en el listado** (desde 2026-09-08, `GET /kardex-entries`): además del
+  saldo VIGENTE de la inversión, cada fila del listado trae `runningBalanceQuantity`/
+  `runningBalanceKilos` — el histórico "cuánto quedaba después de este movimiento puntual",
+  calculado al leer con una función de ventana SQL (`SUM(...) OVER (ORDER BY entry_date,
+  created_at)`) sobre todo el historial activo de la inversión, nunca guardado (mismo criterio
+  que el Dashboard: no duplicar un dato derivable). Se pagina en memoria, no con `LIMIT`/`OFFSET`
+  de SQL — TypeORM envuelve cualquier `skip`/`take` combinado con un `JOIN` en una subconsulta que
+  resuelve la página ANTES de calcular la función de ventana, así que cada página vería el
+  acumulado solo de sus propias filas en vez del historial completo (bug real, encontrado y
+  corregido en la verificación de este cambio). El historial de una inversión puntual es acotado
+  en la práctica, así que traerlo completo y paginarlo en memoria es un compromiso aceptable.
 - **Un Inversionista no ve las ventas de otros inversionistas de la misma inversión** —
   `GET /kardex-entries` filtra los movimientos "venta" a los que le corresponden al usuario
   logueado cuando es de tipo Inversionista (`isInvestor` del token, ver `docs/user-type/
@@ -131,10 +177,11 @@ motivo de cada límite:
 
 | Caso de uso | Qué hace | Errores que puede lanzar |
 |---|---|---|
-| `CreateKardexEntryUseCase` | Crea una fila de kardex | `InvestmentNotFoundException` |
-| `UpdateKardexEntryUseCase` | Actualiza una fila existente | `KardexEntryNotFoundException`, `InvestmentNotFoundException` |
-| `DeactivateKardexEntryUseCase` | Desactiva una fila | `KardexEntryNotFoundException`, `InvestmentNotFoundException` |
-| `ListKardexEntriesByInvestmentUseCase` | Lista las filas activas de una inversión, ordenadas por fecha — si quien pide el listado es Inversionista, filtra las "venta" de otros inversionistas | `InvestmentNotFoundException` |
+| `CreateKardexEntryUseCase` | Crea una fila de kardex y aplica su delta al saldo de la inversión, en una transacción | `InvestmentNotFoundException`, `MovementTypeNotFoundException`, `FirstKardexEntryMustBeIngresoException`, `InsufficientInvestmentBalanceException`, `InvalidKardexInvestorException` |
+| `UpdateKardexEntryUseCase` | Actualiza una fila existente y aplica el delta neto (nuevo − viejo) al saldo, en una transacción | `KardexEntryNotFoundException`, `InvestmentNotFoundException`, `MovementTypeNotFoundException`, `InsufficientInvestmentBalanceException`, `InvalidKardexInvestorException` |
+| `DeactivateKardexEntryUseCase` | Desactiva una fila y revierte su efecto sobre el saldo, en una transacción | `KardexEntryNotFoundException`, `InvestmentNotFoundException`, `MovementTypeNotFoundException`, `InsufficientInvestmentBalanceException` |
+| `ListKardexEntriesByInvestmentUseCase` | Lista las filas activas de una inversión, ordenadas por fecha, con el saldo corrido (cantidad/kilos) después de cada una — si quien pide el listado es Inversionista, filtra las "venta" de otros inversionistas | `InvestmentNotFoundException` |
+| `ListMovementTypesUseCase` | Lista el catálogo de tipos de movimiento (`ingreso`/`venta`/`baja`) | — |
 
 ## HTTP
 
@@ -157,6 +204,7 @@ empresa activa en cada caso de uso, nunca se confía en el id a ciegas).
 | `PATCH /kardex-entries/:id` | `UpdateKardexEntryUseCase` |
 | `PATCH /kardex-entries/:id/deactivate` | `DeactivateKardexEntryUseCase` (204) |
 | `GET /kardex-entries?investmentId=&page=&pageSize=&search=` | `ListKardexEntriesByInvestmentUseCase` — paginado en el servidor, `search` filtra por `detail`; si el que llama es Inversionista (`isInvestor` del token), filtra las "venta" de otros inversionistas |
+| `GET /kardex-movement-types` | `ListMovementTypesUseCase` — catálogo cerrado (`ingreso`/`venta`/`baja`), sin paginar |
 
 `page`/`pageSize`/`search` son el mismo patrón que `GET /users` (ver `docs/auth-sessions` o
 `ARCHITECTURE.md` §8/§9 del backend): `PaginationParams`/`PaginatedResult<T>` en el dominio,
@@ -211,6 +259,10 @@ resultados incompletos.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-08 — Estado Activa/Terminada en Investment, elegido a mano por el usuario](./changes/2026-09-08-estado-activa-terminada.md)
+- [2026-09-08 — Saldo corrido por fila en el listado de Kardex, calculado con una función de ventana SQL](./changes/2026-09-08-saldo-corrido-en-listado-kardex.md)
+- [2026-09-08 — `movement_type` pasa a ser una tabla propia (`kardex_movement_types`), no un string](./changes/2026-09-08-tabla-de-tipos-de-movimiento.md)
+- [2026-09-08 — El saldo (cantidad/kilos/total) vive en Investment, no en cada fila de Kardex](./changes/2026-09-08-saldo-en-inversion-no-en-kardex.md)
 - [2026-09-06 — Un inversionista no ve las ventas de otros inversionistas](./changes/2026-09-06-privacidad-ventas-por-inversionista.md)
 - [2026-09-06 — La propiedad de una inversión se puede cambiar al editar](./changes/2026-09-06-editar-propiedad-de-inversion.md)
 - [2026-09-06 — "Nueva inversión" ya no depende de ningún filtro elegido](./changes/2026-09-06-crear-inversion-sin-filtro.md)

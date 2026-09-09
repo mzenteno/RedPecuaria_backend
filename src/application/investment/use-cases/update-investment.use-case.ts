@@ -35,6 +35,7 @@ export interface UpdateInvestmentInput {
   gestion: number;
   description: string;
   investorUserIds: string[];
+  isFinished: boolean;
 }
 
 @Injectable()
@@ -91,6 +92,7 @@ export class UpdateInvestmentUseCase {
         propertyId: input.propertyId,
         gestion: input.gestion,
         description: input.description,
+        isFinished: input.isFinished,
       });
       const saved = await this.investmentRepository.save(investment, ctx);
       await this.investmentRepository.replaceInvestors(

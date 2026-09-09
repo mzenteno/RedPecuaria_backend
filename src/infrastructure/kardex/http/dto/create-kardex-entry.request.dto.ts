@@ -1,6 +1,5 @@
 import {
   IsDateString,
-  IsIn,
   IsInt,
   IsNumber,
   IsString,
@@ -8,10 +7,6 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import {
-  KARDEX_MOVEMENT_TYPES,
-  type KardexMovementType,
-} from '@domain/kardex/entities/kardex-entry';
 
 export class CreateKardexEntryRequestDto {
   @IsString()
@@ -25,12 +20,16 @@ export class CreateKardexEntryRequestDto {
   @MinLength(1)
   detail: string;
 
-  @IsIn(KARDEX_MOVEMENT_TYPES)
-  movementType: KardexMovementType;
+  /** FK a `kardex_movement_types` — la existencia se valida en el caso de
+   * uso (`MovementTypeRepository.findById`), no acá con un `@IsIn`, mismo
+   * criterio que `userTypeId` en `RegisterUserRequestDto`. */
+  @IsString()
+  @MinLength(1)
+  movementTypeId: string;
 
-  /** Obligatorio solo si `movementType === 'venta'` — validado en el caso de
-   * uso (`assertKardexInvestor`), no acá (necesita consultar la lista de
-   * inversionistas de la inversión). */
+  /** Obligatorio solo si el tipo de movimiento es "venta" — validado en el
+   * caso de uso (`assertKardexInvestor`), no acá (necesita resolver el tipo
+   * y consultar la lista de inversionistas de la inversión). */
   @ValidateIf((dto: CreateKardexEntryRequestDto) => dto.investorUserId !== null)
   @IsString()
   @MinLength(1)
@@ -56,14 +55,10 @@ export class CreateKardexEntryRequestDto {
   @Min(0)
   exitKilos: number;
 
-  @IsInt()
-  @Min(0)
-  balanceQuantity: number;
-
+  /** Dato que tipea el usuario en Ingreso/Venta (0 en Baja) — el saldo que
+   * este movimiento acumula en `Investment.total` lo calcula el caso de uso
+   * (`computeMovementDelta`), no llega del cliente. */
   @IsNumber()
   @Min(0)
-  balanceKilos: number;
-
-  @IsNumber()
   total: number;
 }
