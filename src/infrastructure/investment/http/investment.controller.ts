@@ -12,19 +12,19 @@ import {
 import { CreateInvestmentUseCase } from '@application/investment/use-cases/create-investment.use-case';
 import { UpdateInvestmentUseCase } from '@application/investment/use-cases/update-investment.use-case';
 import { DeactivateInvestmentUseCase } from '@application/investment/use-cases/deactivate-investment.use-case';
-import { ListInvestmentsByPropertyUseCase } from '@application/investment/use-cases/list-investments-by-property.use-case';
 import { ListInvestmentsByPropertyPaginatedUseCase } from '@application/investment/use-cases/list-investments-by-property-paginated.use-case';
 import { ListInvestmentsByInvestorUseCase } from '@application/investment/use-cases/list-investments-by-investor.use-case';
 import { ListInvestmentsByGestionUseCase } from '@application/investment/use-cases/list-investments-by-gestion.use-case';
+import { GetInvestmentByIdUseCase } from '@application/investment/use-cases/get-investment-by-id.use-case';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreateInvestmentRequestDto } from './dto/create-investment.request.dto';
 import { UpdateInvestmentRequestDto } from './dto/update-investment.request.dto';
-import { ListInvestmentsQueryDto } from './dto/list-investments.query.dto';
 import { ListInvestmentsByGestionQueryDto } from './dto/list-investments-by-gestion.query.dto';
 import { ListInvestmentsByPropertyPaginatedQueryDto } from './dto/list-investments-by-property-paginated.query.dto';
 import { ListInvestmentsByInvestorQueryDto } from './dto/list-investments-by-investor.query.dto';
 import { ListMyInvestmentsQueryDto } from './dto/list-my-investments.query.dto';
 import { InvestmentResponseDto } from './dto/investment.response.dto';
+import { InvestmentListItemResponseDto } from './dto/investment-list-item.response.dto';
 import { InvestmentMapper } from './investment.mapper';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 
@@ -44,10 +44,10 @@ export class InvestmentController {
     private readonly createInvestmentUseCase: CreateInvestmentUseCase,
     private readonly updateInvestmentUseCase: UpdateInvestmentUseCase,
     private readonly deactivateInvestmentUseCase: DeactivateInvestmentUseCase,
-    private readonly listInvestmentsByPropertyUseCase: ListInvestmentsByPropertyUseCase,
     private readonly listInvestmentsByPropertyPaginatedUseCase: ListInvestmentsByPropertyPaginatedUseCase,
     private readonly listInvestmentsByInvestorUseCase: ListInvestmentsByInvestorUseCase,
     private readonly listInvestmentsByGestionUseCase: ListInvestmentsByGestionUseCase,
+    private readonly getInvestmentByIdUseCase: GetInvestmentByIdUseCase,
   ) {}
 
   @Post()
@@ -55,11 +55,16 @@ export class InvestmentController {
     @Body() dto: CreateInvestmentRequestDto,
     @CurrentUser('companyId') companyId: string,
   ): Promise<InvestmentResponseDto> {
-    const investment = await this.createInvestmentUseCase.execute({
-      companyId,
-      ...dto,
-    });
-    return InvestmentMapper.toResponse(investment, dto.investorUserIds);
+    const { investment, propertyName } =
+      await this.createInvestmentUseCase.execute({
+        companyId,
+        ...dto,
+      });
+    return InvestmentMapper.toResponse(
+      investment,
+      dto.investorUserIds,
+      propertyName,
+    );
   }
 
   @Patch(':id')
@@ -68,12 +73,17 @@ export class InvestmentController {
     @Body() dto: UpdateInvestmentRequestDto,
     @CurrentUser('companyId') companyId: string,
   ): Promise<InvestmentResponseDto> {
-    const investment = await this.updateInvestmentUseCase.execute({
-      investmentId: id,
-      companyId,
-      ...dto,
-    });
-    return InvestmentMapper.toResponse(investment, dto.investorUserIds);
+    const { investment, propertyName } =
+      await this.updateInvestmentUseCase.execute({
+        investmentId: id,
+        companyId,
+        ...dto,
+      });
+    return InvestmentMapper.toResponse(
+      investment,
+      dto.investorUserIds,
+      propertyName,
+    );
   }
 
   @Patch(':id/deactivate')
@@ -88,20 +98,6 @@ export class InvestmentController {
     });
   }
 
-  @Get()
-  async list(
-    @Query() query: ListInvestmentsQueryDto,
-    @CurrentUser('companyId') companyId: string,
-  ): Promise<InvestmentResponseDto[]> {
-    const results = await this.listInvestmentsByPropertyUseCase.execute({
-      propertyId: query.propertyId,
-      companyId,
-    });
-    return results.map(({ investment, investorIds }) =>
-      InvestmentMapper.toResponse(investment, investorIds),
-    );
-  }
-
   /** Para la pantalla de Inversiones: "Gestión" dispara la consulta (de
    * cualquier propiedad de la empresa), paginado en el servidor —
    * "Propiedad"/"Inversionista" son filtros opcionales adicionales,
@@ -110,7 +106,7 @@ export class InvestmentController {
   async listByGestion(
     @Query() query: ListInvestmentsByGestionQueryDto,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+  ): Promise<PaginatedResponseDto<InvestmentListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listInvestmentsByGestionUseCase.execute({
@@ -123,8 +119,8 @@ export class InvestmentController {
       search: query.search,
     });
     return {
-      data: result.items.map(({ investment, investorIds }) =>
-        InvestmentMapper.toResponse(investment, investorIds),
+      data: result.items.map(({ investment, investorIds, propertyName }) =>
+        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
       ),
       meta: {
         total: result.total,
@@ -138,13 +134,12 @@ export class InvestmentController {
    * consulta por sí sola (sin "Gestión" ni "Inversionista" elegidos),
    * paginado en el servidor — mismo criterio que `by-gestion`/
    * `by-investor`, con "Gestión"/"Inversionista" como filtros opcionales
-   * adicionales. Distinto de `GET /investments?propertyId=` (sin paginar,
-   * lo sigue usando el atajo "Ver kardex"). */
+   * adicionales. */
   @Get('by-property')
   async listByProperty(
     @Query() query: ListInvestmentsByPropertyPaginatedQueryDto,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+  ): Promise<PaginatedResponseDto<InvestmentListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listInvestmentsByPropertyPaginatedUseCase.execute(
@@ -159,8 +154,8 @@ export class InvestmentController {
       },
     );
     return {
-      data: result.items.map(({ investment, investorIds }) =>
-        InvestmentMapper.toResponse(investment, investorIds),
+      data: result.items.map(({ investment, investorIds, propertyName }) =>
+        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
       ),
       meta: {
         total: result.total,
@@ -182,7 +177,7 @@ export class InvestmentController {
   async listByInvestor(
     @Query() query: ListInvestmentsByInvestorQueryDto,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+  ): Promise<PaginatedResponseDto<InvestmentListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listInvestmentsByInvestorUseCase.execute({
@@ -194,8 +189,8 @@ export class InvestmentController {
       search: query.search,
     });
     return {
-      data: result.items.map(({ investment, investorIds }) =>
-        InvestmentMapper.toResponse(investment, investorIds),
+      data: result.items.map(({ investment, investorIds, propertyName }) =>
+        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
       ),
       meta: {
         total: result.total,
@@ -213,7 +208,7 @@ export class InvestmentController {
     @Query() query: ListMyInvestmentsQueryDto,
     @CurrentUser('sub') userId: string,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<PaginatedResponseDto<InvestmentResponseDto>> {
+  ): Promise<PaginatedResponseDto<InvestmentListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listInvestmentsByInvestorUseCase.execute({
@@ -223,8 +218,8 @@ export class InvestmentController {
       companyId,
     });
     return {
-      data: result.items.map(({ investment, investorIds }) =>
-        InvestmentMapper.toResponse(investment, investorIds),
+      data: result.items.map(({ investment, investorIds, propertyName }) =>
+        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
       ),
       meta: {
         total: result.total,
@@ -232,5 +227,28 @@ export class InvestmentController {
         pageSize: result.pageSize,
       },
     };
+  }
+
+  /**
+   * Detalle completo de una inversión (con saldo) — a propósito una ruta
+   * LITERAL... no, esta sí es `:id` (dinámica) — pero va AL FINAL de todas
+   * las rutas literales (`by-gestion`/`by-property`/`by-investor`/`mine`):
+   * si fuera antes, Nest la matchearía primero y esas rutas nunca se
+   * alcanzarían (mismo cuidado que `GET /users/options` antes de
+   * `GET /users/:id`, pero al revés — acá la dinámica va última). Usado por
+   * `InvestmentDialog` (edición) y Kardex ("Saldo actual"), que ya no
+   * dependen del listado para esto (ver el change de este cambio).
+   */
+  @Get(':id')
+  async getById(
+    @Param('id') id: string,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<InvestmentResponseDto> {
+    const { investment, investorIds, propertyName } =
+      await this.getInvestmentByIdUseCase.execute({
+        investmentId: id,
+        companyId,
+      });
+    return InvestmentMapper.toResponse(investment, investorIds, propertyName);
   }
 }

@@ -7,7 +7,6 @@ export class RoleMapper {
       id: role.id,
       companyId: role.companyId,
       name: role.name,
-      isDeleted: role.isDeleted,
       createdAt: role.createdAt,
     };
   }

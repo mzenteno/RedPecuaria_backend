@@ -6,7 +6,6 @@ export class UserTypeMapper {
     return {
       id: userType.id,
       name: userType.name,
-      isDeleted: userType.isDeleted,
       createdAt: userType.createdAt,
     };
   }

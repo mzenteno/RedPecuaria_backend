@@ -45,6 +45,12 @@ export function computeMovementDelta(fields: {
 /** Delta inverso — usado al editar (revertir el viejo antes de aplicar el
  * nuevo) y al dar de baja/desactivar un movimiento (revertir su efecto por
  * completo). */
-export function negateDelta(delta: InvestmentBalanceDelta): InvestmentBalanceDelta {
-  return { quantity: -delta.quantity, kilos: -delta.kilos, total: -delta.total };
+export function negateDelta(
+  delta: InvestmentBalanceDelta,
+): InvestmentBalanceDelta {
+  return {
+    quantity: -delta.quantity,
+    kilos: -delta.kilos,
+    total: -delta.total,
+  };
 }

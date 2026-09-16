@@ -15,6 +15,8 @@ import { ChangeUserTypeUseCase } from '@application/user/use-cases/change-user-t
 import { ChangeOwnPasswordUseCase } from '@application/user/use-cases/change-own-password.use-case';
 import { ListUserTypesUseCase } from '@application/user/use-cases/list-user-types.use-case';
 import { ListUsersUseCase } from '@application/user/use-cases/list-users.use-case';
+import { ListUserOptionsUseCase } from '@application/user/use-cases/list-user-options.use-case';
+import { GetUserByIdUseCase } from '@application/user/use-cases/get-user-by-id.use-case';
 import { UserController } from './http/user.controller';
 import { UserTypeController } from './http/user-type.controller';
 
@@ -45,6 +47,8 @@ import { UserTypeController } from './http/user-type.controller';
     ChangeOwnPasswordUseCase,
     ListUserTypesUseCase,
     ListUsersUseCase,
+    ListUserOptionsUseCase,
+    GetUserByIdUseCase,
   ],
   exports: [USER_REPOSITORY, USER_TYPE_REPOSITORY],
 })

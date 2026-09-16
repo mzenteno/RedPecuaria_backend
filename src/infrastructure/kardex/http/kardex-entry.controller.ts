@@ -13,6 +13,7 @@ import { CreateKardexEntryUseCase } from '@application/kardex/use-cases/create-k
 import { UpdateKardexEntryUseCase } from '@application/kardex/use-cases/update-kardex-entry.use-case';
 import { DeactivateKardexEntryUseCase } from '@application/kardex/use-cases/deactivate-kardex-entry.use-case';
 import { ListKardexEntriesByInvestmentUseCase } from '@application/kardex/use-cases/list-kardex-entries-by-investment.use-case';
+import { GetKardexEntryByIdUseCase } from '@application/kardex/use-cases/get-kardex-entry-by-id.use-case';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreateKardexEntryRequestDto } from './dto/create-kardex-entry.request.dto';
 import { UpdateKardexEntryRequestDto } from './dto/update-kardex-entry.request.dto';
@@ -35,6 +36,7 @@ export class KardexEntryController {
     private readonly updateKardexEntryUseCase: UpdateKardexEntryUseCase,
     private readonly deactivateKardexEntryUseCase: DeactivateKardexEntryUseCase,
     private readonly listKardexEntriesByInvestmentUseCase: ListKardexEntriesByInvestmentUseCase,
+    private readonly getKardexEntryByIdUseCase: GetKardexEntryByIdUseCase,
   ) {}
 
   @Post()
@@ -75,13 +77,25 @@ export class KardexEntryController {
     });
   }
 
+  /**
+   * `meta` trae `totalDebe`/`totalHaber` además de lo de siempre — la suma
+   * de TODO el historial activo de la inversión (no solo la página), para
+   * el footer de la tabla del frontend (ver `KardexEntriesPage` del
+   * dominio, y el change de este cambio). No se agranda
+   * `PaginatedResponseDto`/`PaginationMeta` para esto — son compartidos por
+   * cualquier listado paginado de la app, que no necesita estos 2 campos.
+   */
   @Get()
   async list(
     @Query() query: ListKardexEntriesQueryDto,
     @CurrentUser('companyId') companyId: string,
     @CurrentUser('isInvestor') isInvestor: boolean,
     @CurrentUser('sub') userId: string,
-  ): Promise<PaginatedResponseDto<KardexEntryListItemResponseDto>> {
+  ): Promise<
+    PaginatedResponseDto<KardexEntryListItemResponseDto> & {
+      meta: { totalDebe: number; totalHaber: number };
+    }
+  > {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listKardexEntriesByInvestmentUseCase.execute({
@@ -99,7 +113,35 @@ export class KardexEntryController {
         total: result.total,
         page: result.page,
         pageSize: result.pageSize,
+        totalDebe: result.totalDebe,
+        totalHaber: result.totalHaber,
       },
     };
+  }
+
+  /**
+   * Detalle completo de un movimiento (con `total`) — a propósito una ruta
+   * aparte de `list()`: el listado es liviano (solo lo que se muestra en la
+   * tabla, ver `KardexEntryListItemResponseDto`), el diálogo de edición del
+   * frontend pide esto en vez de depender de la fila del listado (ver el
+   * change de este cambio). `:id` va DESPUÉS de `list()` (ruta literal
+   * `GET /kardex-entries`, sin segmento extra) — no hay conflicto de orden
+   * entre ambas, pero mismo criterio que `InvestmentController`/
+   * `UserController`.
+   */
+  @Get(':id')
+  async getById(
+    @Param('id') id: string,
+    @CurrentUser('companyId') companyId: string,
+    @CurrentUser('isInvestor') isInvestor: boolean,
+    @CurrentUser('sub') userId: string,
+  ): Promise<KardexEntryResponseDto> {
+    const entry = await this.getKardexEntryByIdUseCase.execute({
+      entryId: id,
+      companyId,
+      viewerIsInvestor: isInvestor,
+      viewerUserId: userId,
+    });
+    return KardexEntryMapper.toResponse(entry);
   }
 }

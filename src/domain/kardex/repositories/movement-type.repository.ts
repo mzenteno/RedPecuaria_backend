@@ -6,5 +6,8 @@ export const MOVEMENT_TYPE_REPOSITORY = Symbol('MovementTypeRepository');
 export interface MovementTypeRepository {
   findById(id: string, ctx?: TransactionContext): Promise<MovementType | null>;
   findAll(ctx?: TransactionContext): Promise<MovementType[]>;
-  save(movementType: MovementType, ctx?: TransactionContext): Promise<MovementType>;
+  save(
+    movementType: MovementType,
+    ctx?: TransactionContext,
+  ): Promise<MovementType>;
 }

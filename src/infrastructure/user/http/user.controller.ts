@@ -15,6 +15,8 @@ import { DeactivateUserUseCase } from '@application/user/use-cases/deactivate-us
 import { ChangeUserTypeUseCase } from '@application/user/use-cases/change-user-type.use-case';
 import { ChangeOwnPasswordUseCase } from '@application/user/use-cases/change-own-password.use-case';
 import { ListUsersUseCase } from '@application/user/use-cases/list-users.use-case';
+import { ListUserOptionsUseCase } from '@application/user/use-cases/list-user-options.use-case';
+import { GetUserByIdUseCase } from '@application/user/use-cases/get-user-by-id.use-case';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { RegisterUserRequestDto } from './dto/register-user.request.dto';
@@ -22,7 +24,10 @@ import { UpdateUserRequestDto } from './dto/update-user.request.dto';
 import { ChangeUserTypeRequestDto } from './dto/change-user-type.request.dto';
 import { ChangePasswordRequestDto } from './dto/change-password.request.dto';
 import { ListUsersQueryDto } from './dto/list-users.query.dto';
+import { ListUserOptionsQueryDto } from './dto/list-user-options.query.dto';
 import { UserResponseDto } from './dto/user.response.dto';
+import { UserListItemResponseDto } from './dto/user-list-item.response.dto';
+import { UserOptionResponseDto } from './dto/user-option.response.dto';
 import { UserMapper } from './user.mapper';
 
 const DEFAULT_PAGE = 1;
@@ -37,6 +42,8 @@ export class UserController {
     private readonly changeUserTypeUseCase: ChangeUserTypeUseCase,
     private readonly changeOwnPasswordUseCase: ChangeOwnPasswordUseCase,
     private readonly listUsersUseCase: ListUsersUseCase,
+    private readonly listUserOptionsUseCase: ListUserOptionsUseCase,
+    private readonly getUserByIdUseCase: GetUserByIdUseCase,
   ) {}
 
   @Post()
@@ -82,7 +89,7 @@ export class UserController {
   async list(
     @Query() query: ListUsersQueryDto,
     @CurrentUser('companyId') companyId: string,
-  ): Promise<PaginatedResponseDto<UserResponseDto>> {
+  ): Promise<PaginatedResponseDto<UserListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const result = await this.listUsersUseCase.execute({
@@ -92,13 +99,45 @@ export class UserController {
       companyId,
     });
     return {
-      data: result.items.map((user) => UserMapper.toResponse(user)),
+      data: result.items.map((item) => UserMapper.toListResponse(item)),
       meta: {
         total: result.total,
         page: result.page,
         pageSize: result.pageSize,
       },
     };
+  }
+
+  /**
+   * Para combos (Inversionista en `InvestmentDialog`) — a propósito una ruta
+   * literal ANTES de `:id` (si no, Nest la matchea como si `"options"` fuera
+   * un id) y separada de `list()`: liviana (solo `id`+`fullName`) y sin
+   * paginar, un `<select>` necesita todas las opciones de una vez (ver
+   * `ListUserOptionsUseCase`, y el change de este cambio).
+   */
+  @Get('options')
+  async listOptions(
+    @Query() query: ListUserOptionsQueryDto,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<UserOptionResponseDto[]> {
+    const users = await this.listUserOptionsUseCase.execute({
+      companyId,
+      userTypeId: query.userTypeId,
+    });
+    return users.map((user) => UserMapper.toOptionResponse(user));
+  }
+
+  /**
+   * Detalle completo de un usuario — a propósito una ruta aparte de `list()`:
+   * el listado es liviano (solo lo que se muestra en la tabla, ver
+   * `UserListItemResponseDto`), quien necesite más (el diálogo de edición
+   * del frontend) pide esto en vez de reconstruir datos a mano cruzando el
+   * listado con otro catálogo (ver el change de este cambio).
+   */
+  @Get(':id')
+  async getById(@Param('id') id: string): Promise<UserResponseDto> {
+    const user = await this.getUserByIdUseCase.execute(id);
+    return UserMapper.toResponse(user);
   }
 
   @Patch(':id/deactivate')

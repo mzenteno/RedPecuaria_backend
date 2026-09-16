@@ -6,5 +6,4 @@ export class RoleMenuPermissionResponseDto {
   canCreate: boolean;
   canEdit: boolean;
   canDelete: boolean;
-  isDeleted: boolean;
 }

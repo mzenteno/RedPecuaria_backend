@@ -1,19 +1,26 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
 import { KardexEntry } from '@domain/kardex/entities/kardex-entry';
 import {
   KardexEntryRepository,
   KardexEntryWithRunningBalance,
+  KardexEntriesPage,
   FindKardexEntriesParams,
 } from '@domain/kardex/repositories/kardex-entry.repository';
-import { PaginatedResult } from '@domain/common/paginated-result';
 import { KardexEntryEntity } from '../entities/kardex-entry.entity';
 
 interface RunningBalanceRaw {
   runningBalanceQuantity: string;
   runningBalanceKilos: string;
+  movementTypeName: string;
+  investorName: string | null;
 }
 
 @Injectable()
@@ -31,7 +38,7 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
   async findActiveByInvestment(
     params: FindKardexEntriesParams,
     ctx?: TransactionContext,
-  ): Promise<PaginatedResult<KardexEntryWithRunningBalance>> {
+  ): Promise<KardexEntriesPage> {
     // Saldo corrido (cantidad/kilos) después de cada movimiento — calculado
     // acá con una función de ventana SQL sobre TODOS los movimientos activos
     // de la inversión. Nunca se guarda (ver `KardexEntryWithRunningBalance`).
@@ -68,15 +75,42 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
         ) OVER (ORDER BY entry.entry_date, entry.created_at)`,
         'runningBalanceKilos',
       )
+      // Nombre del tipo de movimiento y del inversionista, resueltos acá —
+      // no con un segundo fetch aparte cruzado a mano del lado del cliente
+      // (bug real, ver el change de este cambio). `movementType` ya estaba
+      // joineado (lo necesita el cálculo de arriba); `investor` es un JOIN
+      // nuevo, `LEFT` porque `investor_user_id` es nulo salvo en "venta".
+      .addSelect('movementType.name', 'movementTypeName')
+      .addSelect('investor.full_name', 'investorName')
       .orderBy('entry.entry_date', 'ASC')
       .addOrderBy('entry.created_at', 'ASC');
 
-    const { entities, raw } = await query.getRawAndEntities<RunningBalanceRaw>();
-    const allItems: KardexEntryWithRunningBalance[] = entities.map((row, index) => ({
-      entry: this.toDomain(row),
-      runningBalanceQuantity: Number(raw[index]?.runningBalanceQuantity ?? 0),
-      runningBalanceKilos: Number(raw[index]?.runningBalanceKilos ?? 0),
-    }));
+    const { entities, raw } =
+      await query.getRawAndEntities<RunningBalanceRaw>();
+    const allItems: KardexEntryWithRunningBalance[] = entities.map(
+      (row, index) => ({
+        entry: this.toDomain(row),
+        runningBalanceQuantity: Number(raw[index]?.runningBalanceQuantity ?? 0),
+        runningBalanceKilos: Number(raw[index]?.runningBalanceKilos ?? 0),
+        movementTypeName: raw[index]?.movementTypeName ?? '—',
+        investorName: raw[index]?.investorName ?? null,
+      }),
+    );
+
+    // Debe/Haber de TODO el historial activo (no solo la página) — para el
+    // footer de la tabla en el frontend. Se suma acá, sobre `allItems`
+    // (antes de recortar la página), porque es donde ya está la lista
+    // completa en memoria — nunca sobre `items` (la página), que daría un
+    // total incompleto si hay más de una página.
+    let totalDebe = 0;
+    let totalHaber = 0;
+    for (const item of allItems) {
+      if (item.movementTypeName === 'ingreso') {
+        totalDebe += item.entry.fields.total;
+      } else {
+        totalHaber += item.entry.fields.total;
+      }
+    }
 
     const start = (params.page - 1) * params.pageSize;
     return {
@@ -84,6 +118,8 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       total: allItems.length,
       page: params.page,
       pageSize: params.pageSize,
+      totalDebe,
+      totalHaber,
     };
   }
 
@@ -102,6 +138,9 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
         'movementType',
         'movementType.id = entry.movement_type_id',
       )
+      // `LEFT` (no `inner`): `investor_user_id` es nulo salvo en "venta" —
+      // resuelve el nombre para el listado, ver `findActiveByInvestment`.
+      .leftJoin('users', 'investor', 'investor.id = entry.investor_user_id')
       .where('entry.investment_id = :investmentId', {
         investmentId: params.investmentId,
       })

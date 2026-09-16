@@ -25,17 +25,6 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
     return row ? this.toDomain(row) : null;
   }
 
-  async findActiveByProperty(
-    propertyId: string,
-    ctx?: TransactionContext,
-  ): Promise<Investment[]> {
-    const rows = await this.repository(ctx).find({
-      where: { propertyId, isDeleted: false },
-      order: { createdAt: 'DESC' },
-    });
-    return rows.map((row) => this.toDomain(row));
-  }
-
   async findByInvestor(
     params: FindInvestmentsByInvestorParams,
     ctx?: TransactionContext,

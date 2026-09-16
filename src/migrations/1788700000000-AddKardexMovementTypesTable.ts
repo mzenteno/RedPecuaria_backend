@@ -13,9 +13,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * acá sí hay datos existentes con significado real que no se pueden perder
  * — qué tipo era cada fila de kardex ya cargada.
  */
-export class AddKardexMovementTypesTable1788700000000
-  implements MigrationInterface
-{
+export class AddKardexMovementTypesTable1788700000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE TABLE "kardex_movement_types" (

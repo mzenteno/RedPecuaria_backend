@@ -56,7 +56,9 @@ export class CreateInvestmentUseCase {
     private readonly transactionManager: TransactionManager,
   ) {}
 
-  async execute(input: CreateInvestmentInput): Promise<Investment> {
+  async execute(
+    input: CreateInvestmentInput,
+  ): Promise<{ investment: Investment; propertyName: string }> {
     const property = await this.propertyRepository.findById(input.propertyId);
     if (!property || property.companyId !== input.companyId) {
       throw new PropertyNotFoundException(input.propertyId);
@@ -68,7 +70,7 @@ export class CreateInvestmentUseCase {
       userCompanyRepository: this.userCompanyRepository,
     });
 
-    return this.transactionManager.run(async (ctx) => {
+    const investment = await this.transactionManager.run(async (ctx) => {
       const investment = Investment.create({
         propertyId: input.propertyId,
         gestion: input.gestion,
@@ -82,5 +84,8 @@ export class CreateInvestmentUseCase {
       );
       return saved;
     });
+    // `property` ya está cargada (arriba, para validar) — se reusa su
+    // nombre en vez de que el controller pida el catálogo aparte.
+    return { investment, propertyName: property.name };
   }
 }

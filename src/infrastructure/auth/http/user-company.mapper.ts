@@ -8,7 +8,6 @@ export class UserCompanyMapper {
       userId: userCompany.userId,
       companyId: userCompany.companyId,
       roleId: userCompany.roleId,
-      isDeleted: userCompany.isDeleted,
       createdAt: userCompany.createdAt,
     };
   }

@@ -13,7 +13,6 @@ export class RoleMenuPermissionMapper {
       canCreate: permission.canCreate,
       canEdit: permission.canEdit,
       canDelete: permission.canDelete,
-      isDeleted: permission.isDeleted,
     };
   }
 }

@@ -4,6 +4,5 @@ export class PropertyResponseDto {
   name: string;
   latitude: number;
   longitude: number;
-  isDeleted: boolean;
   createdAt: Date;
 }

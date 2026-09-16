@@ -54,7 +54,9 @@ export class UpdateInvestmentUseCase {
     private readonly transactionManager: TransactionManager,
   ) {}
 
-  async execute(input: UpdateInvestmentInput): Promise<Investment> {
+  async execute(
+    input: UpdateInvestmentInput,
+  ): Promise<{ investment: Investment; propertyName: string }> {
     const investment = await this.investmentRepository.findById(
       input.investmentId,
     );
@@ -72,6 +74,10 @@ export class UpdateInvestmentUseCase {
     // Si `propertyId` cambió, la propiedad NUEVA también tiene que ser de
     // la empresa activa — mismo chequeo que `CreateInvestmentUseCase`, para
     // no poder "mudar" una inversión a una propiedad de otra empresa.
+    // `finalProperty` es la que de verdad queda asignada — su nombre es el
+    // que se devuelve (ya la tenemos acá, no hace falta que el controller
+    // pida el catálogo aparte).
+    let finalProperty = property;
     if (input.propertyId !== investment.propertyId) {
       const newProperty = await this.propertyRepository.findById(
         input.propertyId,
@@ -79,6 +85,7 @@ export class UpdateInvestmentUseCase {
       if (!newProperty || newProperty.companyId !== input.companyId) {
         throw new PropertyNotFoundException(input.propertyId);
       }
+      finalProperty = newProperty;
     }
 
     await validateInvestors(input.investorUserIds, input.companyId, {
@@ -87,7 +94,7 @@ export class UpdateInvestmentUseCase {
       userCompanyRepository: this.userCompanyRepository,
     });
 
-    return this.transactionManager.run(async (ctx) => {
+    const saved = await this.transactionManager.run(async (ctx) => {
       investment.update({
         propertyId: input.propertyId,
         gestion: input.gestion,
@@ -102,5 +109,6 @@ export class UpdateInvestmentUseCase {
       );
       return saved;
     });
+    return { investment: saved, propertyName: finalProperty.name };
   }
 }

@@ -9,7 +9,6 @@ export class KardexEntryMapper {
       id: entry.id,
       investmentId: entry.investmentId,
       ...entry.fields,
-      isDeleted: entry.isDeleted,
       createdAt: entry.createdAt,
     };
   }
@@ -17,10 +16,32 @@ export class KardexEntryMapper {
   static toListResponse(
     item: KardexEntryWithRunningBalance,
   ): KardexEntryListItemResponseDto {
+    const {
+      entry,
+      runningBalanceQuantity,
+      runningBalanceKilos,
+      movementTypeName,
+      investorName,
+    } = item;
+    // Ingreso es "Debe" (dinero que entra), Venta/Baja son "Haber" (dinero
+    // que sale/se recupera) — Baja nunca tiene `total` (siempre 0, ver
+    // `KardexEntry`), así que su "Haber" da 0 sin caso especial.
+    const isIngreso = movementTypeName === 'ingreso';
     return {
-      ...this.toResponse(item.entry),
-      runningBalanceQuantity: item.runningBalanceQuantity,
-      runningBalanceKilos: item.runningBalanceKilos,
+      id: entry.id,
+      entryDate: entry.fields.entryDate,
+      detail: entry.fields.detail,
+      movementTypeName,
+      investorName,
+      avgWeight: entry.fields.avgWeight,
+      entryQuantity: entry.fields.entryQuantity,
+      entryKilos: entry.fields.entryKilos,
+      exitQuantity: entry.fields.exitQuantity,
+      exitKilos: entry.fields.exitKilos,
+      runningBalanceQuantity,
+      runningBalanceKilos,
+      debe: isIngreso ? entry.fields.total : 0,
+      haber: isIngreso ? 0 : entry.fields.total,
     };
   }
 }

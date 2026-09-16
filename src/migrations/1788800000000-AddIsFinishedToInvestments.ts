@@ -11,9 +11,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * `is_finished` es solo informativo, la inversión sigue visible y
  * operable igual.
  */
-export class AddIsFinishedToInvestments1788800000000
-  implements MigrationInterface
-{
+export class AddIsFinishedToInvestments1788800000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "investments"

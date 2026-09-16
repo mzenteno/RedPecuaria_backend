@@ -13,12 +13,14 @@ import { CreatePropertyUseCase } from '@application/property/use-cases/create-pr
 import { UpdatePropertyUseCase } from '@application/property/use-cases/update-property.use-case';
 import { DeactivatePropertyUseCase } from '@application/property/use-cases/deactivate-property.use-case';
 import { ListPropertiesByCompanyUseCase } from '@application/property/use-cases/list-properties-by-company.use-case';
+import { ListPropertyOptionsUseCase } from '@application/property/use-cases/list-property-options.use-case';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreatePropertyRequestDto } from './dto/create-property.request.dto';
 import { UpdatePropertyRequestDto } from './dto/update-property.request.dto';
 import { ListPropertiesQueryDto } from './dto/list-properties.query.dto';
 import { PropertyResponseDto } from './dto/property.response.dto';
+import { PropertyOptionResponseDto } from './dto/property-option.response.dto';
 import { PropertyMapper } from './property.mapper';
 
 const DEFAULT_PAGE = 1;
@@ -33,6 +35,7 @@ export class PropertyController {
     private readonly updatePropertyUseCase: UpdatePropertyUseCase,
     private readonly deactivatePropertyUseCase: DeactivatePropertyUseCase,
     private readonly listPropertiesByCompanyUseCase: ListPropertiesByCompanyUseCase,
+    private readonly listPropertyOptionsUseCase: ListPropertyOptionsUseCase,
   ) {}
 
   @Post()
@@ -91,5 +94,21 @@ export class PropertyController {
         pageSize: result.pageSize,
       },
     };
+  }
+
+  /**
+   * Para combos (Propiedad en Inversiones/Kardex) — a propósito una ruta
+   * aparte de `list()`: liviana (solo `id`+`name`) y sin paginar, un
+   * `<select>` necesita todas las opciones de una vez (ver
+   * `ListPropertyOptionsUseCase`, y el change de este cambio).
+   */
+  @Get('options')
+  async listOptions(
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PropertyOptionResponseDto[]> {
+    const properties = await this.listPropertyOptionsUseCase.execute(companyId);
+    return properties.map((property) =>
+      PropertyMapper.toOptionResponse(property),
+    );
   }
 }

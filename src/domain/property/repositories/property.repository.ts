@@ -25,5 +25,15 @@ export interface PropertyRepository {
     params: FindPropertiesParams,
     ctx?: TransactionContext,
   ): Promise<PaginatedResult<Property>>;
+  /** Activas de una empresa, SIN paginar — para poblar combos (Propiedad en
+   * Inversiones/Kardex), que solo necesitan `id`+`name` de todas de una vez,
+   * no una página (ver `PropertyOptionResponseDto`). Antes de esto, esos
+   * combos reusaban `findAllPaginated` con `pageSize=100` (el tope del
+   * endpoint paginado) — un problema real si una empresa pasa de 100
+   * propiedades, ver el change de este cambio. */
+  findOptionsByCompany(
+    companyId: string,
+    ctx?: TransactionContext,
+  ): Promise<Property[]>;
   save(property: Property, ctx?: TransactionContext): Promise<Property>;
 }

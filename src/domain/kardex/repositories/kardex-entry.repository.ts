@@ -30,6 +30,24 @@ export interface KardexEntryWithRunningBalance {
   entry: KardexEntry;
   runningBalanceQuantity: number;
   runningBalanceKilos: number;
+  /** Nombre del tipo de movimiento y del inversionista, resueltos con JOIN
+   * en la misma consulta — nunca con un segundo fetch aparte cruzado a mano
+   * del lado del cliente (mismo criterio que `UserWithType`, ver el change
+   * de este cambio). `investorName` es `null` salvo en "venta". */
+  movementTypeName: string;
+  investorName: string | null;
+}
+
+/** El listado paginado de siempre (`PaginatedResult`) más los totales de
+ * Debe/Haber de TODO el historial activo de la inversión (no solo la
+ * página) — para el footer de la tabla en el frontend, que necesita sumar
+ * sobre el total, no sobre lo que se ve en pantalla. No se extiende
+ * `PaginatedResult<T>` con esto a propósito: ese tipo es compartido por
+ * cualquier listado paginado de la app (Usuarios, Propiedades, etc.), que
+ * no necesitan estos 2 campos. */
+export interface KardexEntriesPage extends PaginatedResult<KardexEntryWithRunningBalance> {
+  totalDebe: number;
+  totalHaber: number;
 }
 
 export interface KardexEntryRepository {
@@ -39,7 +57,7 @@ export interface KardexEntryRepository {
   findActiveByInvestment(
     params: FindKardexEntriesParams,
     ctx?: TransactionContext,
-  ): Promise<PaginatedResult<KardexEntryWithRunningBalance>>;
+  ): Promise<KardexEntriesPage>;
   /** Para la regla "la primera transacción de una inversión siempre es
    * ingreso" (ver `CreateKardexEntryUseCase`) — solo necesita saber si ya
    * existe alguna fila activa, no traerlas. */

@@ -32,10 +32,6 @@ export interface FindInvestmentsByPropertyParams extends PaginationParams {
 
 export interface InvestmentRepository {
   findById(id: string, ctx?: TransactionContext): Promise<Investment | null>;
-  findActiveByProperty(
-    propertyId: string,
-    ctx?: TransactionContext,
-  ): Promise<Investment[]>;
   /** Inversiones activas donde `investorUserId` es inversionista, de una
    * empresa puntual (a través de la cadena `Investment → Property →
    * Company`), paginado — usado tanto por "Mis inversiones" (Kardex,
@@ -57,10 +53,9 @@ export interface InvestmentRepository {
   ): Promise<PaginatedResult<Investment>>;
   /** Inversiones activas de una propiedad puntual, paginado — para la
    * pantalla de Inversiones, cuando "Propiedad" es el único filtro elegido
-   * (ni "Gestión" ni "Inversionista"). Distinto de `findActiveByProperty`
-   * (sin paginar, usado por el atajo "Ver kardex" — se deja sin tocar).
-   * `gestion`/`investorUserId` quedan como filtros opcionales adicionales,
-   * mismo criterio que los otros dos métodos "by-*". */
+   * (ni "Gestión" ni "Inversionista"). `gestion`/`investorUserId` quedan
+   * como filtros opcionales adicionales, mismo criterio que los otros dos
+   * métodos "by-*". */
   findActiveByPropertyPaginated(
     params: FindInvestmentsByPropertyParams,
     ctx?: TransactionContext,

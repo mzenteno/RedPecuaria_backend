@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   KARDEX_ENTRY_REPOSITORY,
   type KardexEntryRepository,
-  type KardexEntryWithRunningBalance,
+  type KardexEntriesPage,
 } from '@domain/kardex/repositories/kardex-entry.repository';
 import {
   INVESTMENT_REPOSITORY,
@@ -12,10 +12,7 @@ import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
-import {
-  PaginationParams,
-  PaginatedResult,
-} from '@domain/common/paginated-result';
+import { PaginationParams } from '@domain/common/paginated-result';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
 
 export interface ListKardexEntriesByInvestmentInput extends PaginationParams {
@@ -41,7 +38,7 @@ export class ListKardexEntriesByInvestmentUseCase {
 
   async execute(
     input: ListKardexEntriesByInvestmentInput,
-  ): Promise<PaginatedResult<KardexEntryWithRunningBalance>> {
+  ): Promise<KardexEntriesPage> {
     await assertInvestmentOwnership(input.investmentId, input.companyId, {
       investmentRepository: this.investmentRepository,
       propertyRepository: this.propertyRepository,

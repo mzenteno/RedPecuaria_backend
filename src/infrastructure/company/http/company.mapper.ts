@@ -6,7 +6,6 @@ export class CompanyMapper {
     return {
       id: company.id,
       name: company.name,
-      isDeleted: company.isDeleted,
       createdAt: company.createdAt,
     };
   }

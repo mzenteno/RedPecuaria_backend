@@ -10,6 +10,7 @@ import { CreateKardexEntryUseCase } from '@application/kardex/use-cases/create-k
 import { UpdateKardexEntryUseCase } from '@application/kardex/use-cases/update-kardex-entry.use-case';
 import { DeactivateKardexEntryUseCase } from '@application/kardex/use-cases/deactivate-kardex-entry.use-case';
 import { ListKardexEntriesByInvestmentUseCase } from '@application/kardex/use-cases/list-kardex-entries-by-investment.use-case';
+import { GetKardexEntryByIdUseCase } from '@application/kardex/use-cases/get-kardex-entry-by-id.use-case';
 import { ListMovementTypesUseCase } from '@application/kardex/use-cases/list-movement-types.use-case';
 import { KardexEntryController } from './http/kardex-entry.controller';
 import { MovementTypeController } from './http/movement-type.controller';
@@ -37,6 +38,7 @@ import { PropertyModule } from '@infrastructure/property/property.module';
     UpdateKardexEntryUseCase,
     DeactivateKardexEntryUseCase,
     ListKardexEntriesByInvestmentUseCase,
+    GetKardexEntryByIdUseCase,
     ListMovementTypesUseCase,
   ],
 })

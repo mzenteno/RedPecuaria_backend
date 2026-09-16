@@ -64,6 +64,19 @@ export class PropertyRepositoryAdapter implements PropertyRepository {
     };
   }
 
+  async findOptionsByCompany(
+    companyId: string,
+    ctx?: TransactionContext,
+  ): Promise<Property[]> {
+    const rows = await this.repository(ctx)
+      .createQueryBuilder('property')
+      .where('property.company_id = :companyId', { companyId })
+      .andWhere('property.is_deleted = false')
+      .orderBy('property.name', 'ASC')
+      .getMany();
+    return rows.map((row) => this.toDomain(row));
+  }
+
   async save(property: Property, ctx?: TransactionContext): Promise<Property> {
     const saved = await this.repository(ctx).save(this.toEntity(property));
     return this.toDomain(saved);

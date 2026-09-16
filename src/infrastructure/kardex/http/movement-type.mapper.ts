@@ -6,7 +6,6 @@ export class MovementTypeMapper {
     return {
       id: movementType.id,
       name: movementType.name,
-      isDeleted: movementType.isDeleted,
       createdAt: movementType.createdAt,
     };
   }

@@ -11,6 +11,5 @@ export class KardexEntryResponseDto {
   exitQuantity: number;
   exitKilos: number;
   total: number;
-  isDeleted: boolean;
   createdAt: Date;
 }

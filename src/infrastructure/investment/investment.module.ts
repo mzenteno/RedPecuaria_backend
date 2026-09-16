@@ -7,10 +7,10 @@ import { InvestmentRepositoryAdapter } from './repositories/investment.repositor
 import { CreateInvestmentUseCase } from '@application/investment/use-cases/create-investment.use-case';
 import { UpdateInvestmentUseCase } from '@application/investment/use-cases/update-investment.use-case';
 import { DeactivateInvestmentUseCase } from '@application/investment/use-cases/deactivate-investment.use-case';
-import { ListInvestmentsByPropertyUseCase } from '@application/investment/use-cases/list-investments-by-property.use-case';
 import { ListInvestmentsByPropertyPaginatedUseCase } from '@application/investment/use-cases/list-investments-by-property-paginated.use-case';
 import { ListInvestmentsByInvestorUseCase } from '@application/investment/use-cases/list-investments-by-investor.use-case';
 import { ListInvestmentsByGestionUseCase } from '@application/investment/use-cases/list-investments-by-gestion.use-case';
+import { GetInvestmentByIdUseCase } from '@application/investment/use-cases/get-investment-by-id.use-case';
 import { InvestmentController } from './http/investment.controller';
 import { PropertyModule } from '@infrastructure/property/property.module';
 import { UserModule } from '@infrastructure/user/user.module';
@@ -35,10 +35,10 @@ import { AuthModule } from '@infrastructure/auth/auth.module';
     CreateInvestmentUseCase,
     UpdateInvestmentUseCase,
     DeactivateInvestmentUseCase,
-    ListInvestmentsByPropertyUseCase,
     ListInvestmentsByPropertyPaginatedUseCase,
     ListInvestmentsByInvestorUseCase,
     ListInvestmentsByGestionUseCase,
+    GetInvestmentByIdUseCase,
   ],
   exports: [INVESTMENT_REPOSITORY],
 })

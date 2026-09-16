@@ -4,10 +4,14 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import {
+  PROPERTY_REPOSITORY,
+  type PropertyRepository,
+} from '@domain/property/repositories/property.repository';
+import {
   PaginationParams,
   PaginatedResult,
 } from '@domain/common/paginated-result';
-import type { InvestmentWithInvestors } from './list-investments-by-property.use-case';
+import type { InvestmentWithInvestors } from './list-investments-by-property-paginated.use-case';
 
 export interface ListInvestmentsByGestionInput extends PaginationParams {
   gestion: number;
@@ -28,6 +32,8 @@ export class ListInvestmentsByGestionUseCase {
   constructor(
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(PROPERTY_REPOSITORY)
+    private readonly propertyRepository: PropertyRepository,
   ) {}
 
   async execute(
@@ -35,13 +41,17 @@ export class ListInvestmentsByGestionUseCase {
   ): Promise<PaginatedResult<InvestmentWithInvestors>> {
     const result =
       await this.investmentRepository.findActiveByCompanyAndGestion(input);
+    // A diferencia de `ListInvestmentsByPropertyPaginatedUseCase`, acá SÍ puede haber
+    // inversiones de distintas propiedades (esta lista es "de cualquier
+    // propiedad de la empresa") — hay que resolver el nombre por fila.
     const items = await Promise.all(
-      result.items.map(async (investment) => ({
-        investment,
-        investorIds: await this.investmentRepository.findInvestorIds(
-          investment.id,
-        ),
-      })),
+      result.items.map(async (investment) => {
+        const [investorIds, property] = await Promise.all([
+          this.investmentRepository.findInvestorIds(investment.id),
+          this.propertyRepository.findById(investment.propertyId),
+        ]);
+        return { investment, investorIds, propertyName: property?.name ?? '—' };
+      }),
     );
     return { ...result, items };
   }

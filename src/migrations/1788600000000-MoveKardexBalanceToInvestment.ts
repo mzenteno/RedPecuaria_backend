@@ -15,9 +15,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * desarrollo) — `investments.balance_quantity`/`balance_kilos`/`total`
  * arrancan en 0 para las inversiones ya existentes.
  */
-export class MoveKardexBalanceToInvestment1788600000000
-  implements MigrationInterface
-{
+export class MoveKardexBalanceToInvestment1788600000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       ALTER TABLE "investments"
