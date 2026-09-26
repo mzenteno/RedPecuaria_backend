@@ -2,7 +2,6 @@ import { join } from 'path';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ServeStaticModule } from '@nestjs/serve-static';
 import { CoreModule } from '@infrastructure/core/core.module';
 import { CompanyModule } from '@infrastructure/company/company.module';
 import { UserModule } from '@infrastructure/user/user.module';
@@ -52,17 +51,6 @@ import { DashboardModule } from '@infrastructure/dashboard/dashboard.module';
             ? { rejectUnauthorized: false }
             : false,
       }),
-    }),
-    // Sirve `<cwd>/uploads/**` en `/uploads/**` — hoy el logo de una empresa
-    // (ver `LocalFileStorageAdapter`), sin passar por ningún guard de Nest:
-    // es contenido público por naturaleza (una imagen que se muestra en un
-    // <img> o en un PDF, sin token). Middleware de Express montado directo
-    // por este módulo, corre ANTES del pipeline de Nest (guards incluidos)
-    // para cualquier request que matchee `/uploads/*` — no hace falta
-    // `@Public()` en ningún controlador para esto.
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'uploads'),
-      serveRoot: '/uploads',
     }),
     CoreModule,
     CompanyModule,

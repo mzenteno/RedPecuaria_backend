@@ -1,6 +1,14 @@
 # Logo de empresa (subida, almacenamiento y listado)
 
-**Estado:** ✅ implementado, 2026-09-26.
+**Estado:** ⚠️ el mecanismo de almacenamiento descripto acá (disco local +
+`ServeStaticModule` + `APP_BASE_URL`) quedó SUPERADO el mismo día — recién desplegado a
+producción (Render), se descubrió que el disco local de un servicio web ahí es efímero (se borra
+en cada deploy/reinicio): el logo subido se perdía apenas se volvía a desplegar. Se reemplazó por
+guardar la imagen como `data:` URI en base64 directo en la base — ver
+[2026-09-26-logo-en-base64-no-en-disco.md](./2026-09-26-logo-en-base64-no-en-disco.md), el
+documento canónico actual. Se deja este archivo como quedó, sin reescribirlo, para no perder el
+razonamiento original (subida/validación/UI del diálogo, que SÍ sigue vigente) — la única parte
+superada es "dónde vive el archivo".
 
 ## El pedido
 

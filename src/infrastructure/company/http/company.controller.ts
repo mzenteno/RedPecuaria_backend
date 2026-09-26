@@ -86,10 +86,10 @@ export class CompanyController {
   /**
    * `memoryStorage()` explícito (aunque sea el default de multer sin
    * `dest`/`storage`) — dejarlo implícito obligaría a saber ese detalle de
-   * memoria; acá `file.buffer` en vez de un path en disco es intencional:
-   * quien decide DÓNDE queda el archivo es `FileStorage`
-   * (`UpdateCompanyLogoUseCase`), no multer. `fileFilter` rechaza cualquier
-   * mimetype que no sea una imagen ANTES de leerlo en memoria.
+   * memoria; acá `file.buffer` es intencional: `UpdateCompanyLogoUseCase` lo
+   * guarda tal cual como `data:` URI en base64, nunca toca disco (ver ese
+   * caso de uso para el porqué). `fileFilter` rechaza cualquier mimetype que
+   * no sea una imagen ANTES de leerlo en memoria.
    */
   @Post(':id/logo')
   @UseInterceptors(
@@ -119,11 +119,7 @@ export class CompanyController {
     }
     const company = await this.updateCompanyLogoUseCase.execute({
       companyId: id,
-      file: {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        originalName: file.originalname,
-      },
+      file: { buffer: file.buffer, mimeType: file.mimetype },
     });
     return CompanyMapper.toResponse(company);
   }

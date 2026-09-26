@@ -35,9 +35,13 @@ Se resolvió con una única función, `loadCompanyLogo(url)`, que:
 3. Devuelve también el ancho/alto naturales, para escalar el logo manteniendo su proporción en
    vez de estirarlo a un cuadrado fijo.
 
-**El detalle de CORS que hay que entender para no "arreglarlo" mal después**: el `Blob` ya
-descargado se convierte a un `blob:` URL (`URL.createObjectURL`) — el `<img>` que se dibuja en el
-canvas usa ESE `blob:` URL, nunca la URL `http://` original del backend. Si se usara la URL
+**El detalle de CORS que hay que entender para no "arreglarlo" mal después** (válido para cuando
+`companyLogoUrl` sea una URL `http://` real — hoy, tras
+[2026-09-26-logo-en-base64-no-en-disco.md](./2026-09-26-logo-en-base64-no-en-disco.md), es un
+`data:` URI, que ni siquiera tiene este problema porque no hay origen cruzado posible; se dejó el
+mismo camino igual, por si el logo vuelve a vivir en una URL de verdad más adelante): el `Blob`
+ya descargado se convierte a un `blob:` URL (`URL.createObjectURL`) — el `<img>` que se dibuja en
+el canvas usa ESE `blob:` URL, nunca la URL `http://` original del backend. Si se usara la URL
 original directo, el canvas quedaría "tainted" por CORS y `toDataURL()` tiraría una excepción de
 seguridad. Con el `blob:` URL no hay ese problema, porque en ese punto la imagen ya son bytes
 propios del navegador, no un recurso remoto.

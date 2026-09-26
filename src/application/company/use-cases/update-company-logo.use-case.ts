@@ -5,33 +5,28 @@ import {
   type CompanyRepository,
 } from '@domain/company/repositories/company.repository';
 import { CompanyNotFoundException } from '@domain/company/exceptions/company-not-found.exception';
-import {
-  FILE_STORAGE,
-  type FileStorage,
-  type StoredFileInput,
-} from '@domain/core/ports/file-storage.port';
-
-const LOGOS_FOLDER = 'logos';
 
 export interface UpdateCompanyLogoInput {
   companyId: string;
-  file: StoredFileInput;
+  file: { buffer: Buffer; mimeType: string };
 }
 
 /**
- * Sube el logo nuevo ANTES de tocar la base (si algo falla guardando el
- * archivo, la empresa se queda como estaba), y borra el logo anterior
- * DESPUÉS de confirmar el `save()` (si algo falla persistiendo, no se pierde
- * el archivo viejo todavía referenciado). El archivo en sí lo maneja
- * `FileStorage` — este caso de uso no sabe si es disco local, S3, etc.
+ * Guarda la imagen tal cual, como `data:` URI en base64, directo en
+ * `logoUrl` — no en un archivo aparte (disco/S3/etc.). Se eligió así (a
+ * pedido del usuario, 2026-09-26) tras encontrar en producción que el disco
+ * local de un servicio de Render es efímero: cualquier archivo subido se
+ * pierde en el siguiente deploy/reinicio. Guardarlo en la propia fila de
+ * `companies` lo hace sobrevivir a eso sin depender de ningún storage
+ * externo — el costo es que cada logo pesa hasta ~2,7 MB de texto en la
+ * base (ver `docs/company/changes/2026-09-26-logo-en-base64-no-en-disco.md`
+ * para el detalle completo, incluidas las alternativas descartadas).
  */
 @Injectable()
 export class UpdateCompanyLogoUseCase {
   constructor(
     @Inject(COMPANY_REPOSITORY)
     private readonly companyRepository: CompanyRepository,
-    @Inject(FILE_STORAGE)
-    private readonly fileStorage: FileStorage,
   ) {}
 
   async execute(input: UpdateCompanyLogoInput): Promise<Company> {
@@ -40,15 +35,8 @@ export class UpdateCompanyLogoUseCase {
       throw new CompanyNotFoundException(input.companyId);
     }
 
-    const previousLogoUrl = company.logoUrl;
-    const newLogoUrl = await this.fileStorage.save(LOGOS_FOLDER, input.file);
-    company.updateLogo(newLogoUrl);
-    const saved = await this.companyRepository.save(company);
-
-    if (previousLogoUrl) {
-      await this.fileStorage.remove(previousLogoUrl);
-    }
-
-    return saved;
+    const logoUrl = `data:${input.file.mimeType};base64,${input.file.buffer.toString('base64')}`;
+    company.updateLogo(logoUrl);
+    return this.companyRepository.save(company);
   }
 }

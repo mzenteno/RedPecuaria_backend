@@ -5,10 +5,6 @@ import {
   type CompanyRepository,
 } from '@domain/company/repositories/company.repository';
 import { CompanyNotFoundException } from '@domain/company/exceptions/company-not-found.exception';
-import {
-  FILE_STORAGE,
-  type FileStorage,
-} from '@domain/core/ports/file-storage.port';
 
 export interface RemoveCompanyLogoInput {
   companyId: string;
@@ -19,8 +15,6 @@ export class RemoveCompanyLogoUseCase {
   constructor(
     @Inject(COMPANY_REPOSITORY)
     private readonly companyRepository: CompanyRepository,
-    @Inject(FILE_STORAGE)
-    private readonly fileStorage: FileStorage,
   ) {}
 
   async execute(input: RemoveCompanyLogoInput): Promise<Company> {
@@ -29,14 +23,7 @@ export class RemoveCompanyLogoUseCase {
       throw new CompanyNotFoundException(input.companyId);
     }
 
-    const previousLogoUrl = company.logoUrl;
     company.updateLogo(null);
-    const saved = await this.companyRepository.save(company);
-
-    if (previousLogoUrl) {
-      await this.fileStorage.remove(previousLogoUrl);
-    }
-
-    return saved;
+    return this.companyRepository.save(company);
   }
 }

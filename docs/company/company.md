@@ -34,10 +34,12 @@ erDiagram
   restricción de "super-admin de plataforma" — eso queda para un trabajo futuro fuera de
   este plan.
 - **Logo opcional** (`logoUrl`, desde 2026-09-26): una empresa puede tener un logo (PNG, JPG,
-  WEBP o SVG, hasta 2 MB) — se sube/quita desde el diálogo de edición, con dos endpoints propios
-  separados de `PATCH /companies/:id`. No se muestra en el listado de Empresas (a pedido del
-  usuario). Se usa en el encabezado del PDF de Kardex (ver
-  [changes/2026-09-26-logo-de-empresa.md](./changes/2026-09-26-logo-de-empresa.md) y
+  WEBP o SVG, hasta 2 MB), guardado como `data:` URI en base64 **en la propia fila** (`text`, no
+  un archivo aparte — el disco local de Render es efímero, ver
+  [changes/2026-09-26-logo-en-base64-no-en-disco.md](./changes/2026-09-26-logo-en-base64-no-en-disco.md))
+  — se sube/quita desde el diálogo de edición, con dos endpoints propios separados de
+  `PATCH /companies/:id`. No se muestra en el listado de Empresas (a pedido del usuario). Se usa
+  en el encabezado del PDF de Kardex (ver
   [changes/2026-09-26-logo-en-pdf-kardex.md](./changes/2026-09-26-logo-en-pdf-kardex.md)).
 
 ## Casos de uso (Application)
@@ -48,8 +50,8 @@ erDiagram
 | `UpdateCompanyUseCase` | Renombra una empresa existente | `CompanyNotFoundException` |
 | `DeactivateCompanyUseCase` | Desactiva una empresa (`isDeleted = true`) | `CompanyNotFoundException` |
 | `ListCompaniesUseCase` | Lista empresas — todas las **activas**, ordenadas por `name` (`ORDER BY` en la query), si el usuario es Super Administrador (`CompanyRepository.findAllActive()`), solo la de su sesión si no (ver `docs/user-type/user-type.md`) | — |
-| `UpdateCompanyLogoUseCase` | Sube el logo nuevo, actualiza `logoUrl`, y recién después borra el archivo anterior (si había) | `CompanyNotFoundException` |
-| `RemoveCompanyLogoUseCase` | Quita el logo (`logoUrl = null`) y borra el archivo del disco | `CompanyNotFoundException` |
+| `UpdateCompanyLogoUseCase` | Codifica la imagen como `data:` URI en base64 y la guarda en `logoUrl` | `CompanyNotFoundException` |
+| `RemoveCompanyLogoUseCase` | Quita el logo (`logoUrl = null`) | `CompanyNotFoundException` |
 
 ## HTTP
 
@@ -62,17 +64,18 @@ erDiagram
 | `POST /companies/:id/logo` | `UpdateCompanyLogoUseCase` — `multipart/form-data`, campo `file` (imagen, máx. 2 MB) |
 | `DELETE /companies/:id/logo` | `RemoveCompanyLogoUseCase` |
 
-El archivo en sí no lo maneja ningún caso de uso — vive detrás del puerto `FileStorage`
-(`domain/core/ports`), hoy implementado en disco local (`LocalFileStorageAdapter`) y servido de
-vuelta en `/uploads/**` (`ServeStaticModule`, sin autenticación: es contenido público por
-naturaleza). Ver `changes/2026-09-26-logo-de-empresa.md` para el detalle completo.
+El logo no vive en ningún archivo ni storage aparte — se guarda tal cual, como `data:` URI en
+base64, en la propia columna `logo_url` (`text`). Ver
+`changes/2026-09-26-logo-en-base64-no-en-disco.md` para el porqué (spoiler: Render borra el
+disco local en cada deploy) y el detalle completo.
 
 ## Últimos cambios
 
 Ver el historial completo en [`changes/`](./changes/).
 
 - [2026-09-26 — El logo aparece en el encabezado del PDF de Kardex](./changes/2026-09-26-logo-en-pdf-kardex.md)
-- [2026-09-26 — Logo de empresa (subida, almacenamiento y listado)](./changes/2026-09-26-logo-de-empresa.md)
+- [2026-09-26 — El logo se guarda en base64 en la base, no en disco](./changes/2026-09-26-logo-en-base64-no-en-disco.md)
+- [2026-09-26 — (superado el mismo día) Logo de empresa — subida a disco local](./changes/2026-09-26-logo-de-empresa.md)
 - [2026-09-03 — `is_active` → `is_deleted` en las 7 tablas con baja lógica](./changes/2026-09-03-is-active-a-is-deleted.md)
 - [2026-09-03 — CRUD de Empresas en el frontend + filtro por activas](./changes/2026-09-03-crud-frontend-y-filtro-activas.md)
 - [2026-09-02 — Super Administrador y visibilidad de empresas](../user-type/changes/2026-09-02-super-administrador-y-visibilidad-de-empresas.md)
