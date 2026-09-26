@@ -6,6 +6,11 @@ import {
 } from '@domain/investment/repositories/investment.repository';
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
+import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
@@ -28,6 +33,8 @@ export class GetInvestmentByIdUseCase {
   constructor(
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
   ) {}
@@ -36,6 +43,7 @@ export class GetInvestmentByIdUseCase {
     investment: Investment;
     investorIds: string[];
     propertyName: string;
+    investmentTypeName: string;
   }> {
     const investment = await this.investmentRepository.findById(
       input.investmentId,
@@ -59,6 +67,17 @@ export class GetInvestmentByIdUseCase {
     const investorIds = await this.investmentRepository.findInvestorIds(
       investment.id,
     );
-    return { investment, investorIds, propertyName: property.name };
+    const investmentType = await this.investmentTypeRepository.findById(
+      investment.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(investment.investmentTypeId);
+    }
+    return {
+      investment,
+      investorIds,
+      propertyName: property.name,
+      investmentTypeName: investmentType.name,
+    };
   }
 }

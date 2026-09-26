@@ -21,6 +21,7 @@ import {
   COMPANY_REPOSITORY,
   type CompanyRepository,
 } from '@domain/company/repositories/company.repository';
+import { CompanyNotFoundException } from '@domain/company/exceptions/company-not-found.exception';
 import {
   REFRESH_TOKEN_REPOSITORY,
   type RefreshTokenRepository,
@@ -39,7 +40,10 @@ import {
 export interface LoginInput {
   username: string;
   password: string;
-  /** Solo necesario si el usuario tiene más de una empresa activa. */
+  /** Necesario si el usuario tiene más de una empresa activa propia, O si es
+   * un Super Administrador sin ninguna (ver `execute`) — en los dos casos el
+   * primer intento sin `companyId` tira `CompanySelectionRequiredException`
+   * con las opciones para elegir. */
   companyId?: string;
 }
 
@@ -48,7 +52,10 @@ export interface LoginResult {
   refreshToken: string;
   userId: string;
   companyId: string;
-  roleId: string;
+  /** `undefined` solo para un Super Administrador sin ninguna fila propia en
+   * `user_companies` (ver `AccessTokenPayload.roleId`) — para cualquier otro
+   * usuario, siempre viene presente. */
+  roleId?: string;
 }
 
 const REFRESH_TOKEN_EXPIRES_IN_DAYS = 30;
@@ -84,14 +91,46 @@ export class LoginUseCase {
       throw new InvalidCredentialsException();
     }
 
+    // Se necesita antes del chequeo de `activeUserCompanies` (a diferencia de
+    // antes) — un Super Administrador sin ninguna fila en `user_companies`
+    // puede loguearse igual, mismo criterio que ya usan
+    // `SwitchCompanyUseCase`/`RefreshTokenUseCase` (2026-09-25).
+    const userType = await this.userTypeRepository.findById(user.userTypeId);
+    const isSuperAdmin = userType?.isSuperAdmin() ?? false;
+
     const activeUserCompanies =
       await this.userCompanyRepository.findActiveByUserId(user.id);
-    if (activeUserCompanies.length === 0) {
-      throw new NoActiveUserCompanyException();
-    }
 
-    let userCompany = activeUserCompanies[0];
-    if (activeUserCompanies.length > 1) {
+    let companyId: string;
+    let roleId: string | undefined;
+
+    if (activeUserCompanies.length === 0) {
+      if (!isSuperAdmin) {
+        throw new NoActiveUserCompanyException();
+      }
+      // Elige entre TODAS las empresas del sistema (no las suyas — no tiene
+      // ninguna) — mismo mecanismo que el `CompanySelectionRequiredException`
+      // de abajo (varias membresías propias), con el catálogo completo en
+      // vez de sus propias filas (a pedido del usuario, 2026-09-25).
+      if (!input.companyId) {
+        const companies = await this.companyRepository.findAllActive();
+        const choices: CompanyChoice[] = companies.map((company) => ({
+          companyId: company.id,
+          companyName: company.name,
+        }));
+        throw new CompanySelectionRequiredException(choices);
+      }
+
+      const company = await this.companyRepository.findById(input.companyId);
+      if (!company || company.isDeleted) {
+        throw new CompanyNotFoundException(input.companyId);
+      }
+      companyId = company.id;
+      roleId = undefined;
+    } else if (activeUserCompanies.length === 1) {
+      companyId = activeUserCompanies[0].companyId;
+      roleId = activeUserCompanies[0].roleId;
+    } else {
       if (!input.companyId) {
         const choices: CompanyChoice[] = await Promise.all(
           activeUserCompanies.map(async (uc) => {
@@ -111,19 +150,18 @@ export class LoginUseCase {
       if (!chosen) {
         throw new NoActiveUserCompanyException();
       }
-      userCompany = chosen;
+      companyId = chosen.companyId;
+      roleId = chosen.roleId;
     }
-
-    const userType = await this.userTypeRepository.findById(user.userTypeId);
 
     const accessToken = this.tokenGenerator.generateAccessToken({
       sub: user.id,
-      companyId: userCompany.companyId,
-      roleId: userCompany.roleId,
+      companyId,
+      roleId,
       email: user.email.toString(),
       username: user.username,
       fullName: user.fullName,
-      isSuperAdmin: userType?.isSuperAdmin() ?? false,
+      isSuperAdmin,
       isInvestor: userType?.isInvestor() ?? false,
     });
 
@@ -134,7 +172,7 @@ export class LoginUseCase {
 
     const refreshToken = RefreshToken.create({
       userId: user.id,
-      companyId: userCompany.companyId,
+      companyId,
       tokenHash: refreshTokenHash,
       expiresAt,
     });
@@ -147,8 +185,8 @@ export class LoginUseCase {
       accessToken,
       refreshToken: opaqueRefreshToken,
       userId: user.id,
-      companyId: userCompany.companyId,
-      roleId: userCompany.roleId,
+      companyId,
+      roleId,
     };
   }
 }

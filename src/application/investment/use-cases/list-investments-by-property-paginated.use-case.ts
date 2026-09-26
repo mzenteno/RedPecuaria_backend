@@ -8,10 +8,15 @@ import {
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import {
   PaginationParams,
   PaginatedResult,
 } from '@domain/common/paginated-result';
 import { Investment } from '@domain/investment/entities/investment';
+import { resolveInvestmentTypeNames } from '../resolve-investment-type-names';
 
 export interface ListInvestmentsByPropertyPaginatedInput extends PaginationParams {
   propertyId: string;
@@ -29,6 +34,10 @@ export interface InvestmentWithInvestors {
    * propiedad, así que se resuelve una sola vez y se reusa para todas las
    * filas (no hace falta pedirla por inversión). */
   propertyName: string;
+  /** Igual criterio que `propertyName`, pero acá el catálogo completo son
+   * solo 2 filas (`kilo`/`dinero`) — se resuelve una sola vez para TODO el
+   * listado (`resolveInvestmentTypeNames`), no una por propiedad. */
+  investmentTypeName: string;
 }
 
 /**
@@ -43,6 +52,8 @@ export class ListInvestmentsByPropertyPaginatedUseCase {
   constructor(
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
   ) {}
@@ -61,6 +72,9 @@ export class ListInvestmentsByPropertyPaginatedUseCase {
         ? ((await this.propertyRepository.findById(input.propertyId))?.name ??
           '—')
         : '';
+    const investmentTypeNames = await resolveInvestmentTypeNames(
+      this.investmentTypeRepository,
+    );
     const items = await Promise.all(
       result.items.map(async (investment) => ({
         investment,
@@ -68,6 +82,8 @@ export class ListInvestmentsByPropertyPaginatedUseCase {
           investment.id,
         ),
         propertyName,
+        investmentTypeName:
+          investmentTypeNames.get(investment.investmentTypeId) ?? '—',
       })),
     );
     return { ...result, items };

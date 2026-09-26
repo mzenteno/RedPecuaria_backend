@@ -129,12 +129,31 @@ motivo de cada límite:
 - **Saldo vigente en `Investment`, no en `kardex_entries`** (desde 2026-09-08): cada tipo de
   movimiento carga campos distintos y afecta el saldo distinto —
   **Ingreso** (`entryQuantity`+`entryKilos`+`total`, dato manual) suma cantidad, kilos y total;
-  **Baja** (`exitQuantity` solamente) resta cantidad, **no toca kilos** (no pide kilos como
-  input); **Venta** (`exitQuantity`+`exitKilos`+`total`, dato manual) resta cantidad y kilos, y
-  suma su `total`. La traducción movimiento → delta vive en `computeMovementDelta`
-  (`application/kardex`); quién aplica el delta y nunca deja `balanceQuantity`/`balanceKilos`
-  negativo es `Investment.applyBalanceDelta` (`InsufficientInvestmentBalanceException` si no
-  alcanza). **La primera transacción activa de una inversión siempre tiene que ser "ingreso"**
+  **Baja** (`exitQuantity`+`avgWeight`, dato manual) resta cantidad y también resta kilos — a
+  pedido del usuario (2026-09-24), Baja pide "Salida — kilos" (mismo campo/título que Venta,
+  aunque por debajo sigue guardado en `avgWeight`: sin columna nueva), un valor directo que se
+  resta tal cual (antes "Peso promedio" en Baja era solo informativo, sin efecto en el saldo);
+  **Venta** (`exitQuantity`+`exitKilos`+`total`, dato manual) resta cantidad y kilos, y suma su
+  `total`. En inversiones "por dinero" (ver
+  [changes/2026-09-23-inversion-por-kilo-o-por-dinero.md](./changes/2026-09-23-inversion-por-kilo-o-por-dinero.md))
+  el mismo criterio aplica sobre `total` en vez de kilos — Baja pide "Total Bs." (mismo
+  título/campo que Venta) y también lo resta directo, pero del campo `avgWeight`, nunca del
+  `total` del propio `KardexEntry` (ese se mantiene en 0 en Baja siempre, ver
+  [changes/2026-09-24-baja-merma-saldo.md](./changes/2026-09-24-baja-merma-saldo.md)). **Debe/Haber
+  contable** (columnas del listado, `debe`/`haber` en `GET /kardex-entries`): Ingreso es "Debe";
+  Venta siempre es "Haber" (su `total`); Baja es "Haber" **solo en modo "por dinero"** (el valor
+  de `avgWeight`, que ahí es plata real que salió) — en modo "por kilo" una Baja no tiene ningún
+  dato de dinero cargado, así que no aporta nada al Haber (ver
+  [changes/2026-09-26-baja-en-el-haber.md](./changes/2026-09-26-baja-en-el-haber.md)). La
+  traducción movimiento → delta vive en `computeMovementDelta` (`application/kardex`); quién
+  aplica el delta es `Investment.applyBalanceDelta`, que solo valida el piso en 0 de
+  `balanceQuantity` (`InsufficientInvestmentBalanceException` si no alcanza) — no se puede vender
+  o dar de baja más cabezas de las que hay. `balanceKilos`/`total` (el saldo físico secundario,
+  según el tipo) **no tienen piso en 0** (desde 2026-09-26, antes sí se validaban igual que la
+  cantidad): es válido que el peso/precio promedio de una Venta o Baja puntual no coincida con el
+  promedio acumulado del resto del historial y el saldo quede negativo, no es un error de carga
+  (ver [changes/2026-09-26-sin-piso-en-kilos-o-dinero.md](./changes/2026-09-26-sin-piso-en-kilos-o-dinero.md)).
+  **La primera transacción activa de una inversión siempre tiene que ser "ingreso"**
   (`FirstKardexEntryMustBeIngresoException` si no) — no puede haber una Baja o Venta sin stock
   previo. Editar o desactivar un `KardexEntry` revierte/recalcula el efecto sobre el saldo en la
   misma transacción (delta neto al editar, delta invertido al desactivar).
@@ -259,6 +278,10 @@ resultados incompletos.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-26 — Kilos/dinero ya no tienen piso en 0](./changes/2026-09-26-sin-piso-en-kilos-o-dinero.md)
+- [2026-09-26 — Una Baja en modo "por dinero" también cuenta como Haber](./changes/2026-09-26-baja-en-el-haber.md)
+- [2026-09-24 — "Baja" ahora merma el saldo (kilos o dinero)](./changes/2026-09-24-baja-merma-saldo.md)
+- [2026-09-23 — Inversión "por kilo" o "por dinero"](./changes/2026-09-23-inversion-por-kilo-o-por-dinero.md)
 - [2026-09-08 — Estado Activa/Terminada en Investment, elegido a mano por el usuario](./changes/2026-09-08-estado-activa-terminada.md)
 - [2026-09-08 — Saldo corrido por fila en el listado de Kardex, calculado con una función de ventana SQL](./changes/2026-09-08-saldo-corrido-en-listado-kardex.md)
 - [2026-09-08 — `movement_type` pasa a ser una tabla propia (`kardex_movement_types`), no un string](./changes/2026-09-08-tabla-de-tipos-de-movimiento.md)

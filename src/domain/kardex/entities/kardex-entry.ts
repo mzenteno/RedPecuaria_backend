@@ -15,9 +15,15 @@ export interface KardexEntryPersistence {
   /** Solo presente si el tipo de movimiento es "venta" — validado contra
    * los inversionistas de la inversión, ver `assertKardexInvestor`. */
   investorUserId: string | null;
+  /** En Ingreso/Venta, calculado (`kilos o total / cantidad`, ver
+   * `KardexEntryDialog`). En Baja es un dato manual — y a diferencia de
+   * Ingreso/Venta, en Baja SÍ afecta el saldo: `avgWeight × exitQuantity`
+   * es lo que se resta de kilos (o de `total` en modo "dinero"), porque
+   * Baja no tiene un campo de kilos propio. Ver `computeMovementDelta`. */
   avgWeight: number;
-  /** Ingreso: carga cantidad y kilos. Baja: solo cantidad (`exitQuantity`),
-   * no toca kilos. Venta: cantidad y kilos de salida. Ver
+  /** Ingreso: carga cantidad y kilos. Baja: solo cantidad (`exitQuantity`)
+   * como dato propio — los kilos que resta se derivan de `avgWeight`, no
+   * de un campo acá. Venta: cantidad y kilos de salida. Ver
    * `computeMovementDelta` en `application/kardex` para el detalle exacto
    * por tipo. */
   entryQuantity: number;

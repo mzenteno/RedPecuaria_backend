@@ -14,10 +14,15 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
 import {
   TRANSACTION_MANAGER,
   type TransactionManager,
@@ -42,6 +47,8 @@ export class DeactivateKardexEntryUseCase {
     private readonly movementTypeRepository: MovementTypeRepository,
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
     @Inject(TRANSACTION_MANAGER)
@@ -66,9 +73,26 @@ export class DeactivateKardexEntryUseCase {
       throw new MovementTypeNotFoundException(entry.fields.movementTypeId);
     }
 
+    const investmentForType = await this.investmentRepository.findById(
+      entry.investmentId,
+    );
+    if (!investmentForType) {
+      throw new InvestmentNotFoundException(entry.investmentId);
+    }
+    const investmentType = await this.investmentTypeRepository.findById(
+      investmentForType.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(
+        investmentForType.investmentTypeId,
+      );
+    }
+
     const reverseDelta = negateDelta(
       computeMovementDelta({
         movementType,
+        investmentType,
+        avgWeight: entry.fields.avgWeight,
         entryQuantity: entry.fields.entryQuantity,
         entryKilos: entry.fields.entryKilos,
         exitQuantity: entry.fields.exitQuantity,

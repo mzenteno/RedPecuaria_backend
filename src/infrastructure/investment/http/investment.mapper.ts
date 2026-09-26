@@ -7,11 +7,14 @@ export class InvestmentMapper {
     investment: Investment,
     investorIds: string[],
     propertyName: string,
+    investmentTypeName: string,
   ): InvestmentResponseDto {
     return {
       id: investment.id,
       propertyId: investment.propertyId,
       propertyName,
+      investmentTypeId: investment.investmentTypeId,
+      investmentTypeName,
       gestion: investment.gestion,
       description: investment.description,
       balanceQuantity: investment.balanceQuantity,
@@ -27,11 +30,14 @@ export class InvestmentMapper {
     investment: Investment,
     investorIds: string[],
     propertyName: string,
+    investmentTypeName: string,
   ): InvestmentListItemResponseDto {
     return {
       id: investment.id,
       propertyId: investment.propertyId,
       propertyName,
+      investmentTypeId: investment.investmentTypeId,
+      investmentTypeName,
       gestion: investment.gestion,
       description: investment.description,
       isFinished: investment.isFinished,

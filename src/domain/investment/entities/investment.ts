@@ -5,6 +5,13 @@ export interface InvestmentPersistence {
   propertyId: string;
   gestion: number;
   description: string;
+  /** FK a `investment_types` (catálogo cerrado, `'kilo'`/`'dinero'`) — fijo
+   * desde la creación, nunca se edita (ver `Investment.update`, que no lo
+   * toca). Esta entidad guarda solo el id, igual criterio que
+   * `KardexEntry.movementTypeId`: no interpreta su significado — quien
+   * necesita saber si es "kilo"/"dinero" (`computeMovementDelta`) lo
+   * resuelve aparte. */
+  investmentTypeId: string;
   balanceQuantity: number;
   balanceKilos: number;
   total: number;
@@ -50,6 +57,7 @@ export class Investment {
   private constructor(
     private readonly _id: string | null,
     private _propertyId: string,
+    private readonly _investmentTypeId: string,
     private _gestion: number,
     private _description: string,
     private _balanceQuantity: number,
@@ -62,12 +70,14 @@ export class Investment {
 
   static create(props: {
     propertyId: string;
+    investmentTypeId: string;
     gestion: number;
     description: string;
   }): Investment {
     return new Investment(
       null,
       props.propertyId,
+      props.investmentTypeId,
       props.gestion,
       props.description,
       0,
@@ -85,6 +95,7 @@ export class Investment {
     return new Investment(
       props.id,
       props.propertyId,
+      props.investmentTypeId,
       props.gestion,
       props.description,
       props.balanceQuantity,
@@ -105,6 +116,10 @@ export class Investment {
 
   get propertyId(): string {
     return this._propertyId;
+  }
+
+  get investmentTypeId(): string {
+    return this._investmentTypeId;
   }
 
   get gestion(): number {
@@ -160,18 +175,31 @@ export class Investment {
 
   /**
    * Aplica el efecto neto de un movimiento de kardex sobre el saldo
-   * vigente. Nunca deja `balanceQuantity`/`balanceKilos` en negativo — no
-   * se puede dar de baja o vender más cabezas/kilos de los que hay. `total`
-   * no tiene ese piso (es dinero acumulado, no una existencia física).
+   * vigente. Nunca deja `balanceQuantity` en negativo — no se puede dar de
+   * baja o vender más cabezas de las que hay.
+   *
+   * El "saldo físico" secundario (`balanceKilos` en modo "kilo", `total` en
+   * modo "dinero") **no tiene piso en 0** (a pedido del usuario,
+   * 2026-09-26): a diferencia de la cantidad de cabezas, es totalmente
+   * válido que quede negativo — el peso/precio promedio de una Venta o
+   * Baja puntual no tiene por qué coincidir con el promedio acumulado del
+   * resto del historial, así que puede perfectamente "gastar más kilos/Bs.
+   * de los que quedaban" sin que eso sea un error de carga. Antes se
+   * validaba igual que la cantidad (`InsufficientInvestmentBalanceException`
+   * también acá, recibiendo el `InvestmentType` para decidir cuál de los
+   * dos campos mirar) — ver
+   * `docs/investment/changes/2026-09-26-sin-piso-en-kilos-o-dinero.md`. Ya
+   * no hace falta ese parámetro: quien llama sigue necesitando el
+   * `InvestmentType` resuelto para `computeMovementDelta`, pero eso es un
+   * fetch aparte, no algo que este método tenga que recibir.
    */
   applyBalanceDelta(delta: InvestmentBalanceDelta): void {
     const newBalanceQuantity = this._balanceQuantity + delta.quantity;
-    const newBalanceKilos = this._balanceKilos + delta.kilos;
-    if (newBalanceQuantity < 0 || newBalanceKilos < 0) {
+    if (newBalanceQuantity < 0) {
       throw new InsufficientInvestmentBalanceException(this._id ?? '(nueva)');
     }
     this._balanceQuantity = newBalanceQuantity;
-    this._balanceKilos = newBalanceKilos;
+    this._balanceKilos = this._balanceKilos + delta.kilos;
     this._total = this._total + delta.total;
   }
 
@@ -183,6 +211,7 @@ export class Investment {
     return {
       id: this._id,
       propertyId: this.propertyId,
+      investmentTypeId: this._investmentTypeId,
       gestion: this._gestion,
       description: this._description,
       balanceQuantity: this._balanceQuantity,

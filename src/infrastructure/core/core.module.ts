@@ -6,20 +6,23 @@ import { TRANSACTION_MANAGER } from '@domain/core/ports/transaction-manager.port
 import { PASSWORD_HASHER } from '@domain/core/ports/password-hasher.port';
 import { HASH_SERVICE } from '@domain/core/ports/hash.port';
 import { TOKEN_GENERATOR } from '@domain/core/ports/token-generator.port';
+import { FILE_STORAGE } from '@domain/core/ports/file-storage.port';
 import { TransactionManagerAdapter } from './persistence/transaction-manager.adapter';
 import { PasswordHasherAdapter } from './security/password-hasher.adapter';
 import { HashServiceAdapter } from './security/hash-service.adapter';
 import { JwtTokenGeneratorAdapter } from './security/jwt-token-generator.adapter';
+import { LocalFileStorageAdapter } from './storage/local-file-storage.adapter';
 import { JwtAuthGuard } from './security/jwt-auth.guard';
 import { GlobalExceptionFilter } from '@infrastructure/common/http/global-exception.filter';
 import { ResponseInterceptor } from '@infrastructure/common/http/response.interceptor';
 
 /**
  * Servicios singleton de infraestructura, compartidos por todos los módulos
- * de negocio: transacciones, hashing, tokens (JWT), el filtro global de
- * excepciones, el interceptor que arma la respuesta exitosa, y el guard que
- * protege por defecto toda ruta que no esté marcada con `@Public()` (Fase 9).
- * Se importa una sola vez, en AppModule (ver ARCHITECTURE.md §3).
+ * de negocio: transacciones, hashing, tokens (JWT), archivos subidos
+ * (`FILE_STORAGE`), el filtro global de excepciones, el interceptor que
+ * arma la respuesta exitosa, y el guard que protege por defecto toda ruta
+ * que no esté marcada con `@Public()` (Fase 9). Se importa una sola vez, en
+ * AppModule (ver ARCHITECTURE.md §3).
  */
 @Global()
 @Module({
@@ -47,6 +50,7 @@ import { ResponseInterceptor } from '@infrastructure/common/http/response.interc
     { provide: PASSWORD_HASHER, useClass: PasswordHasherAdapter },
     { provide: HASH_SERVICE, useClass: HashServiceAdapter },
     { provide: TOKEN_GENERATOR, useClass: JwtTokenGeneratorAdapter },
+    { provide: FILE_STORAGE, useClass: LocalFileStorageAdapter },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -56,6 +60,7 @@ import { ResponseInterceptor } from '@infrastructure/common/http/response.interc
     PASSWORD_HASHER,
     HASH_SERVICE,
     TOKEN_GENERATOR,
+    FILE_STORAGE,
   ],
 })
 export class CoreModule {}

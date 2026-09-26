@@ -55,7 +55,7 @@ export class InvestmentController {
     @Body() dto: CreateInvestmentRequestDto,
     @CurrentUser('companyId') companyId: string,
   ): Promise<InvestmentResponseDto> {
-    const { investment, propertyName } =
+    const { investment, propertyName, investmentTypeName } =
       await this.createInvestmentUseCase.execute({
         companyId,
         ...dto,
@@ -64,6 +64,7 @@ export class InvestmentController {
       investment,
       dto.investorUserIds,
       propertyName,
+      investmentTypeName,
     );
   }
 
@@ -73,7 +74,7 @@ export class InvestmentController {
     @Body() dto: UpdateInvestmentRequestDto,
     @CurrentUser('companyId') companyId: string,
   ): Promise<InvestmentResponseDto> {
-    const { investment, propertyName } =
+    const { investment, propertyName, investmentTypeName } =
       await this.updateInvestmentUseCase.execute({
         investmentId: id,
         companyId,
@@ -83,6 +84,7 @@ export class InvestmentController {
       investment,
       dto.investorUserIds,
       propertyName,
+      investmentTypeName,
     );
   }
 
@@ -119,8 +121,14 @@ export class InvestmentController {
       search: query.search,
     });
     return {
-      data: result.items.map(({ investment, investorIds, propertyName }) =>
-        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
+      data: result.items.map(
+        ({ investment, investorIds, propertyName, investmentTypeName }) =>
+          InvestmentMapper.toListResponse(
+            investment,
+            investorIds,
+            propertyName,
+            investmentTypeName,
+          ),
       ),
       meta: {
         total: result.total,
@@ -154,8 +162,14 @@ export class InvestmentController {
       },
     );
     return {
-      data: result.items.map(({ investment, investorIds, propertyName }) =>
-        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
+      data: result.items.map(
+        ({ investment, investorIds, propertyName, investmentTypeName }) =>
+          InvestmentMapper.toListResponse(
+            investment,
+            investorIds,
+            propertyName,
+            investmentTypeName,
+          ),
       ),
       meta: {
         total: result.total,
@@ -189,8 +203,14 @@ export class InvestmentController {
       search: query.search,
     });
     return {
-      data: result.items.map(({ investment, investorIds, propertyName }) =>
-        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
+      data: result.items.map(
+        ({ investment, investorIds, propertyName, investmentTypeName }) =>
+          InvestmentMapper.toListResponse(
+            investment,
+            investorIds,
+            propertyName,
+            investmentTypeName,
+          ),
       ),
       meta: {
         total: result.total,
@@ -218,8 +238,14 @@ export class InvestmentController {
       companyId,
     });
     return {
-      data: result.items.map(({ investment, investorIds, propertyName }) =>
-        InvestmentMapper.toListResponse(investment, investorIds, propertyName),
+      data: result.items.map(
+        ({ investment, investorIds, propertyName, investmentTypeName }) =>
+          InvestmentMapper.toListResponse(
+            investment,
+            investorIds,
+            propertyName,
+            investmentTypeName,
+          ),
       ),
       meta: {
         total: result.total,
@@ -244,11 +270,16 @@ export class InvestmentController {
     @Param('id') id: string,
     @CurrentUser('companyId') companyId: string,
   ): Promise<InvestmentResponseDto> {
-    const { investment, investorIds, propertyName } =
+    const { investment, investorIds, propertyName, investmentTypeName } =
       await this.getInvestmentByIdUseCase.execute({
         investmentId: id,
         companyId,
       });
-    return InvestmentMapper.toResponse(investment, investorIds, propertyName);
+    return InvestmentMapper.toResponse(
+      investment,
+      investorIds,
+      propertyName,
+      investmentTypeName,
+    );
   }
 }

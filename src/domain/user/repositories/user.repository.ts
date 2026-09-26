@@ -13,6 +13,14 @@ export const USER_REPOSITORY = Symbol('UserRepository');
  * Super Administrador vía `SwitchCompanyUseCase`). */
 export interface ListUsersParams extends PaginationParams {
   companyId: string;
+  /** true si quien pide el listado NO es Super Administrador — a pedido del
+   * usuario (2026-09-25): un usuario que no es Super Administrador no puede
+   * ver filas de ese tipo en el listado. Mismo criterio que
+   * `restrictSalesToInvestorId` en Kardex: un booleano resuelto en el caso
+   * de uso a partir de `isSuperAdmin` (JWT), traducido acá a un filtro de
+   * SQL — no una tabla ni un guard genérico, no existe ninguno en el
+   * proyecto para este tipo de reglas. */
+  excludeSuperAdmins: boolean;
 }
 
 export interface FindUserOptionsParams {

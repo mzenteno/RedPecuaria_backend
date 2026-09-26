@@ -19,8 +19,11 @@ import { KardexEntryEntity } from '../entities/kardex-entry.entity';
 interface RunningBalanceRaw {
   runningBalanceQuantity: string;
   runningBalanceKilos: string;
+  runningBalanceTotal: string;
   movementTypeName: string;
   investorName: string | null;
+  debe: string;
+  haber: string;
 }
 
 @Injectable()
@@ -70,10 +73,30 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
           CASE
             WHEN "movementType"."name" = 'ingreso' THEN entry.entry_kilos
             WHEN "movementType"."name" = 'venta' THEN -entry.exit_kilos
+            WHEN "movementType"."name" = 'baja' THEN -entry.avg_weight
             ELSE 0
           END
         ) OVER (ORDER BY entry.entry_date, entry.created_at)`,
         'runningBalanceKilos',
+      )
+      // Equivalente en dinero, para inversiones "por dinero" — mismo signo
+      // que `computeMovementDelta` en ese modo (Ingreso suma, Venta resta
+      // `total`, al revés que en modo "kilo" donde Venta siempre lo suma;
+      // Baja resta `avg_weight`, igual criterio que en modo "kilo" — nunca
+      // `total`, para no ensuciar Debe/Haber, ver `computeMovementDelta`).
+      // Se calcula siempre, sin mirar el tipo de la inversión (esta query
+      // ya está acotada a una sola inversión) — el frontend elige cuál de
+      // los dos mostrar.
+      .addSelect(
+        `SUM(
+          CASE
+            WHEN "movementType"."name" = 'ingreso' THEN entry.total
+            WHEN "movementType"."name" = 'venta' THEN -entry.total
+            WHEN "movementType"."name" = 'baja' THEN -entry.avg_weight
+            ELSE 0
+          END
+        ) OVER (ORDER BY entry.entry_date, entry.created_at)`,
+        'runningBalanceTotal',
       )
       // Nombre del tipo de movimiento y del inversionista, resueltos acá —
       // no con un segundo fetch aparte cruzado a mano del lado del cliente
@@ -82,6 +105,28 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       // nuevo, `LEFT` porque `investor_user_id` es nulo salvo en "venta".
       .addSelect('movementType.name', 'movementTypeName')
       .addSelect('investor.full_name', 'investorName')
+      // Debe/Haber por fila — Ingreso es "Debe" (siempre `entry.total`,
+      // dato que el usuario tipea en Ingreso sin importar el tipo de
+      // inversión). Venta es "Haber" (`entry.total` también, mismo
+      // criterio). Baja es "Haber" SOLO si la inversión es "por dinero"
+      // (`bajaHaberExpr`): en ese modo `avg_weight` es el monto en Bs. que
+      // salió (dato real de esa fila); en modo "kilo" `avg_weight` es
+      // merma en KILOS, no dinero — sumarlo acá ensuciaría el footer
+      // Debe/Haber con un número que no es plata (bug real, encontrado en
+      // vivo: la Baja mermaba el saldo bien pero nunca aparecía en Haber,
+      // ver docs/investment/changes/2026-09-26-baja-en-el-haber.md).
+      .addSelect(
+        `CASE WHEN "movementType"."name" = 'ingreso' THEN entry.total ELSE 0 END`,
+        'debe',
+      )
+      .addSelect(
+        `CASE
+          WHEN "movementType"."name" = 'venta' THEN entry.total
+          WHEN "movementType"."name" = 'baja' THEN ${params.investmentTypeIsDinero ? 'entry.avg_weight' : '0'}
+          ELSE 0
+        END`,
+        'haber',
+      )
       .orderBy('entry.entry_date', 'ASC')
       .addOrderBy('entry.created_at', 'ASC');
 
@@ -92,8 +137,11 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
         entry: this.toDomain(row),
         runningBalanceQuantity: Number(raw[index]?.runningBalanceQuantity ?? 0),
         runningBalanceKilos: Number(raw[index]?.runningBalanceKilos ?? 0),
+        runningBalanceTotal: Number(raw[index]?.runningBalanceTotal ?? 0),
         movementTypeName: raw[index]?.movementTypeName ?? '—',
         investorName: raw[index]?.investorName ?? null,
+        debe: Number(raw[index]?.debe ?? 0),
+        haber: Number(raw[index]?.haber ?? 0),
       }),
     );
 
@@ -101,15 +149,14 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
     // footer de la tabla en el frontend. Se suma acá, sobre `allItems`
     // (antes de recortar la página), porque es donde ya está la lista
     // completa en memoria — nunca sobre `items` (la página), que daría un
-    // total incompleto si hay más de una página.
+    // total incompleto si hay más de una página. `debe`/`haber` ya vienen
+    // resueltos por fila desde el SQL de arriba (incluye la Baja cuando
+    // corresponde) — no hay que volver a mirar `movementTypeName` acá.
     let totalDebe = 0;
     let totalHaber = 0;
     for (const item of allItems) {
-      if (item.movementTypeName === 'ingreso') {
-        totalDebe += item.entry.fields.total;
-      } else {
-        totalHaber += item.entry.fields.total;
-      }
+      totalDebe += item.debe;
+      totalHaber += item.haber;
     }
 
     const start = (params.page - 1) * params.pageSize;

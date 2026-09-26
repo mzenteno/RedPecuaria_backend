@@ -50,8 +50,13 @@ export class UserController {
   async register(
     @Body() dto: RegisterUserRequestDto,
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('isSuperAdmin') callerIsSuperAdmin: boolean,
   ): Promise<UserResponseDto> {
-    const user = await this.registerUserUseCase.execute({ ...dto, companyId });
+    const user = await this.registerUserUseCase.execute({
+      ...dto,
+      companyId,
+      callerIsSuperAdmin,
+    });
     return UserMapper.toResponse(user);
   }
 
@@ -89,6 +94,7 @@ export class UserController {
   async list(
     @Query() query: ListUsersQueryDto,
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('isSuperAdmin') isSuperAdmin: boolean,
   ): Promise<PaginatedResponseDto<UserListItemResponseDto>> {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
@@ -97,6 +103,7 @@ export class UserController {
       pageSize,
       search: query.search,
       companyId,
+      viewerIsSuperAdmin: isSuperAdmin,
     });
     return {
       data: result.items.map((item) => UserMapper.toListResponse(item)),
@@ -152,11 +159,13 @@ export class UserController {
     @Param('id') id: string,
     @Body() dto: ChangeUserTypeRequestDto,
     @CurrentUser('companyId') companyId: string,
+    @CurrentUser('isSuperAdmin') callerIsSuperAdmin: boolean,
   ): Promise<void> {
     await this.changeUserTypeUseCase.execute({
       userId: id,
       companyId,
       userTypeId: dto.userTypeId,
+      callerIsSuperAdmin,
     });
   }
 }

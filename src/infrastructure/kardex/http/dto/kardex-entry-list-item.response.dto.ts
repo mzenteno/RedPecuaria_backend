@@ -11,13 +11,15 @@
  * el change de este cambio). Agrega también el saldo corrido (cantidad/
  * kilos) después de este movimiento, calculado al leer.
  *
- * `debe`/`haber`: reformulación contable de `total` según el tipo de
- * movimiento — Ingreso es "Debe" (dinero que entra, lo invertido), Venta/
- * Baja son "Haber" (dinero que sale/se recupera; Baja siempre da `0` acá,
- * nunca tiene `total`, ver `KardexEntry`). Resueltos en el mapper a partir
- * de `total`+`movementTypeName` (ya presentes en la fila, sin JOIN nuevo) —
- * para que el frontend sume Haber−Debe y sepa si la inversión está en
- * ganancia o pérdida, sin tener que volver a pedir `total` crudo.
+ * `debe`/`haber`: reformulación contable del movimiento — Ingreso es
+ * "Debe" (dinero que entra, lo invertido), Venta/Baja son "Haber" (dinero
+ * que sale/se recupera). Baja solo tiene Haber si la inversión es "por
+ * dinero" (en "por kilo" no hay ningún dato de plata cargado en una Baja,
+ * ver `KardexEntryDialog`) — resueltos en el REPOSITORIO, no en el mapper
+ * HTTP, porque hace falta `Investment.investmentTypeId` para decidir eso
+ * (ver `FindKardexEntriesParams.investmentTypeIsDinero` del dominio y
+ * `docs/investment/changes/2026-09-26-baja-en-el-haber.md`). El mapper
+ * solo pasa estos dos campos tal cual llegan.
  *
  * `POST`/`PATCH`/`GET /:id` siguen devolviendo `KardexEntryResponseDto`
  * completo (con los FK crudos y `total`) — crear/editar/el diálogo sí los
@@ -36,6 +38,11 @@ export class KardexEntryListItemResponseDto {
   exitKilos: number;
   runningBalanceQuantity: number;
   runningBalanceKilos: number;
+  /** Equivalente a `runningBalanceKilos` en dinero — solo tiene sentido
+   * mostrarlo si la inversión es "por dinero" (ver
+   * `Investment.investmentTypeName`); en "por kilo" el frontend ignora
+   * este campo. */
+  runningBalanceTotal: number;
   debe: number;
   haber: number;
 }

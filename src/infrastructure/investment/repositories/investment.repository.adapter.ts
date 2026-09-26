@@ -229,6 +229,7 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
     return Investment.fromPersistence({
       id: row.id,
       propertyId: row.propertyId,
+      investmentTypeId: row.investmentTypeId,
       gestion: row.gestion,
       description: row.description,
       // `numeric` vuelve como string con el driver `pg` — convertir a mano
@@ -249,6 +250,7 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
       row.id = snapshot.id;
     }
     row.propertyId = snapshot.propertyId;
+    row.investmentTypeId = snapshot.investmentTypeId;
     row.gestion = snapshot.gestion;
     row.description = snapshot.description;
     row.balanceQuantity = snapshot.balanceQuantity;

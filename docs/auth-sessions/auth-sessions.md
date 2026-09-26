@@ -47,7 +47,12 @@ erDiagram
   todas las sesiones activas de ese usuario como medida de seguridad.
 - **Login**: si el usuario tiene un solo `UserCompany` activo, se autentica directo contra esa
   empresa; si tiene varios, debe indicar con cuál empresa iniciar sesión (no se emiten tokens
-  hasta que la empresa quede resuelta).
+  hasta que la empresa quede resuelta). **Un usuario Super Administrador puede tener cero
+  `UserCompany`** (desde 2026-09-25, ver
+  [../user-company/changes/2026-09-25-super-admin-sin-user-company.md](../user-company/changes/2026-09-25-super-admin-sin-user-company.md)):
+  en ese caso se le pide elegir empresa igual que si tuviera varias, pero la lista para elegir
+  son **todas** las empresas del sistema, no las suyas — `roleId` queda ausente en el token
+  resultante (ya era opcional).
 - No hay auto-registro: los usuarios los crea un administrador (ver `user.md`).
 - La autorización de cada request no depende de un rol fijo, sino de consultar
   `role_menu_permissions` para el `roleId` + `companyId` del token (ver `permission.md`).
@@ -95,6 +100,7 @@ conectado).
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-25 — Login de un Super Administrador sin empresa: elige entre todas](../user-company/changes/2026-09-25-super-admin-sin-user-company.md)
 - [2026-09-06 — `isInvestor` en el access token, para el dashboard por tipo de usuario](../dashboard/changes/2026-09-06-dashboard-por-tipo-de-usuario.md)
 - [2026-09-04 — `username`/`fullName` en el access token](./changes/2026-09-04-fullname-en-el-token.md)
 - [2026-09-02 — Fase 9: guard global de autenticación](./changes/2026-09-02-fase-9-guard-global.md)

@@ -8,6 +8,9 @@ export class InvestmentEntity {
   @Column({ name: 'property_id', type: 'bigint' })
   propertyId: string;
 
+  @Column({ name: 'investment_type_id', type: 'bigint' })
+  investmentTypeId: string;
+
   @Column({ type: 'integer' })
   gestion: number;
 

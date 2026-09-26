@@ -4,6 +4,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
 import { PaginatedResult } from '@domain/common/paginated-result';
 import { User } from '@domain/user/entities/user';
+import { SUPER_ADMIN_USER_TYPE_NAME } from '@domain/user/entities/user-type';
 import {
   ListUsersParams,
   UserRepository,
@@ -43,9 +44,18 @@ export class UserRepositoryAdapter implements UserRepository {
     // relación ORM declarada (mismo criterio del resto del proyecto: joins
     // explícitos, no `@ManyToOne`) — se filtra por `companyId` con un join
     // manual, no hay forma de acotarlo desde `UserEntity` solo.
+    //
+    // `leftJoin` (no `inner`) — a pedido del usuario (2026-09-25), un Super
+    // Administrador no tiene NINGUNA fila en `user_companies` (ver
+    // docs/user-company/changes/2026-09-25-super-admin-sin-user-company.md);
+    // un `innerJoin` acotado a `companyId` lo dejaría afuera de CUALQUIER
+    // listado, sin forma de encontrarlo/editarlo desde la pantalla de
+    // Usuarios. La condición de la membresía va en el JOIN (no en el WHERE)
+    // para que siga habiendo como mucho una fila por usuario
+    // (`UNIQUE(user_id, company_id)`), sin duplicar filas.
     const query = this.repository(ctx)
       .createQueryBuilder('user')
-      .innerJoin(
+      .leftJoin(
         'user_companies',
         'uc',
         'uc.user_id = user.id AND uc.company_id = :companyId AND uc.is_deleted = false',
@@ -60,7 +70,19 @@ export class UserRepositoryAdapter implements UserRepository {
       .addSelect('userType.name', 'userTypeName')
       // Igual criterio que "Empresas": el listado no muestra dados de baja
       // (no hay todavía una vista/filtro para verlos, ver docs/user/user.md).
-      .where('user.is_deleted = false');
+      .where('user.is_deleted = false')
+      // Sale en el listado si tiene membresía activa en ESTA empresa, o si
+      // quien mira es Super Administrador y esta fila también lo es (sin
+      // esto último, ni un Super Administrador podría encontrar a otro,
+      // ya que ninguno de los dos tiene una empresa que los una).
+      .andWhere(
+        params.excludeSuperAdmins
+          ? 'uc.id IS NOT NULL'
+          : '(uc.id IS NOT NULL OR userType.name = :superAdminTypeName)',
+        params.excludeSuperAdmins
+          ? {}
+          : { superAdminTypeName: SUPER_ADMIN_USER_TYPE_NAME },
+      );
 
     if (params.search) {
       query.andWhere(

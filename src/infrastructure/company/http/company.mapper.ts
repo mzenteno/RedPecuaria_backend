@@ -6,6 +6,7 @@ export class CompanyMapper {
     return {
       id: company.id,
       name: company.name,
+      logoUrl: company.logoUrl,
       createdAt: company.createdAt,
     };
   }

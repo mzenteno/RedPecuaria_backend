@@ -7,6 +7,8 @@ import { CreateCompanyUseCase } from '@application/company/use-cases/create-comp
 import { UpdateCompanyUseCase } from '@application/company/use-cases/update-company.use-case';
 import { DeactivateCompanyUseCase } from '@application/company/use-cases/deactivate-company.use-case';
 import { ListCompaniesUseCase } from '@application/company/use-cases/list-companies.use-case';
+import { UpdateCompanyLogoUseCase } from '@application/company/use-cases/update-company-logo.use-case';
+import { RemoveCompanyLogoUseCase } from '@application/company/use-cases/remove-company-logo.use-case';
 import { CompanyController } from './http/company.controller';
 
 @Module({
@@ -18,6 +20,8 @@ import { CompanyController } from './http/company.controller';
     UpdateCompanyUseCase,
     DeactivateCompanyUseCase,
     ListCompaniesUseCase,
+    UpdateCompanyLogoUseCase,
+    RemoveCompanyLogoUseCase,
   ],
   exports: [COMPANY_REPOSITORY],
 })

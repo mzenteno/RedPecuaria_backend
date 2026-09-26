@@ -9,9 +9,15 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
+import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
 import { PaginationParams } from '@domain/common/paginated-result';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
 
@@ -32,6 +38,8 @@ export class ListKardexEntriesByInvestmentUseCase {
     private readonly kardexEntryRepository: KardexEntryRepository,
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
   ) {}
@@ -44,6 +52,24 @@ export class ListKardexEntriesByInvestmentUseCase {
       propertyRepository: this.propertyRepository,
     });
 
+    // Para decidir si la Baja cuenta como "Haber" (ver
+    // `FindKardexEntriesParams.investmentTypeIsDinero`) — mismo patrón de
+    // doble fetch que `CreateKardexEntryUseCase` (uno adentro de
+    // `assertInvestmentOwnership`, otro acá para los datos que sí
+    // necesita este caso de uso).
+    const investment = await this.investmentRepository.findById(
+      input.investmentId,
+    );
+    if (!investment) {
+      throw new InvestmentNotFoundException(input.investmentId);
+    }
+    const investmentType = await this.investmentTypeRepository.findById(
+      investment.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(investment.investmentTypeId);
+    }
+
     return this.kardexEntryRepository.findActiveByInvestment({
       investmentId: input.investmentId,
       page: input.page,
@@ -52,6 +78,7 @@ export class ListKardexEntriesByInvestmentUseCase {
       restrictSalesToInvestorId: input.viewerIsInvestor
         ? input.viewerUserId
         : undefined,
+      investmentTypeIsDinero: investmentType.isDinero(),
     });
   }
 }

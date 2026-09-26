@@ -6,10 +6,18 @@ export class InvestmentResponseDto {
    * porque `InvestmentDialog` (edición) sí lo necesita crudo para el
    * `<select>` de "Propiedad". */
   propertyName: string;
+  /** Fijo desde la creación, nunca se edita (ver
+   * docs/investment/investment.md). `investmentTypeName` viene resuelto
+   * acá (no un segundo fetch aparte del catálogo) — 'kilo' o 'dinero',
+   * decide qué campos/columnas muestra el frontend. */
+  investmentTypeId: string;
+  investmentTypeName: string;
   gestion: number;
   description: string;
   /** Saldo vigente, mantenido en cada alta/edición/baja de un `KardexEntry`
-   * — ver `Investment.applyBalanceDelta`. */
+   * — ver `Investment.applyBalanceDelta`. En inversiones "por dinero",
+   * `total` hace el papel de saldo físico (equivalente a `balanceKilos` en
+   * "por kilo") — ver `computeMovementDelta`. */
   balanceQuantity: number;
   balanceKilos: number;
   total: number;

@@ -41,6 +41,7 @@ export class CompanyRepositoryAdapter implements CompanyRepository {
     return Company.fromPersistence({
       id: row.id,
       name: row.name,
+      logoUrl: row.logoUrl,
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
     });
@@ -53,6 +54,7 @@ export class CompanyRepositoryAdapter implements CompanyRepository {
       row.id = snapshot.id;
     }
     row.name = snapshot.name;
+    row.logoUrl = snapshot.logoUrl;
     row.isDeleted = snapshot.isDeleted;
     row.createdAt = snapshot.createdAt;
     return row;

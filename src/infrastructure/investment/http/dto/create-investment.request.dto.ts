@@ -17,6 +17,12 @@ export class CreateInvestmentRequestDto {
   @MinLength(1)
   propertyId: string;
 
+  /** Fijo desde la creación — no existe en `UpdateInvestmentRequestDto`,
+   * no se puede cambiar después (ver docs/investment/investment.md). */
+  @IsString()
+  @MinLength(1)
+  investmentTypeId: string;
+
   @IsInt()
   @Min(MIN_GESTION)
   @Max(MAX_GESTION)

@@ -44,6 +44,12 @@ erDiagram
   un vínculo desactivado queda **pendiente**: `UserCompany` todavía no tiene un método para
   eso (solo `deactivate()`); hoy `AssignUserToCompanyUseCase` lanza
   `UserCompanyAlreadyExistsException` en ambos casos.
+- **Excepción: un usuario Super Administrador puede tener CERO vínculos activos** (desde
+  2026-09-25) — no pertenece a ninguna empresa puntual, ve todas por su `UserType`, no por
+  membresía. Al hacer login sin ningún `UserCompany`, se le muestra el mismo diálogo de
+  selección de empresa que a alguien con varios vínculos, pero poblado con **todas** las
+  empresas del sistema, no con las suyas (no tiene ninguna) — ver
+  [changes/2026-09-25-super-admin-sin-user-company.md](./changes/2026-09-25-super-admin-sin-user-company.md).
 
 ## Casos de uso (Application)
 
@@ -83,6 +89,7 @@ empresa activa.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-25 — Un Super Administrador puede tener cero vínculos](./changes/2026-09-25-super-admin-sin-user-company.md)
 - [2026-09-04 — Cambiar tipo/rol desde la pantalla de Usuarios + scoping por empresa](./changes/2026-09-04-cambiar-tipo-y-rol-desde-usuarios.md)
 - [2026-09-02 — Controladores CRUD + CORS](../company/changes/2026-09-02-controladores-crud.md)
 - [2026-08-31 — Casos de uso de gestión del vínculo](./changes/2026-08-31-casos-de-uso-user-company.md)

@@ -40,7 +40,10 @@ erDiagram
   solo que dejó de ser el identificador único.
 - No hay auto-registro público. Los usuarios los crea un administrador, y esa creación
   siempre incluye asignar un rol dentro de una empresa (`User` + `UserCompany` en una sola
-  transacción — ver ARCHITECTURE.md §7).
+  transacción — ver ARCHITECTURE.md §7) — **excepto un usuario de tipo Super Administrador**:
+  para ese tipo no se pide ni empresa ni rol, y no se crea ningún `UserCompany` (desde
+  2026-09-25, ver
+  [../user-company/changes/2026-09-25-super-admin-sin-user-company.md](../user-company/changes/2026-09-25-super-admin-sin-user-company.md)).
 - La contraseña se almacena hasheada con bcrypt, nunca en texto plano.
 - Un usuario puede desactivarse (`deactivate()`) sin eliminarse.
 - Todo usuario tiene exactamente un `UserType` (obligatorio), puramente informativo — no
@@ -50,7 +53,7 @@ erDiagram
 
 | Caso de uso | Qué hace | Errores que puede lanzar |
 |---|---|---|
-| `RegisterUserUseCase` | Crea el usuario y su primer `UserCompany`, **en una sola transacción** (§7) | `UsernameAlreadyRegisteredException`, `InvalidUsernameException`, `UserTypeNotFoundException`, `CompanyNotFoundException`, `RoleNotFoundException` (si el rol no existe o no pertenece a la empresa) |
+| `RegisterUserUseCase` | Crea el usuario y su primer `UserCompany`, **en una sola transacción** (§7) — salvo que el `UserType` sea Super Administrador, donde solo crea el `User` | `UsernameAlreadyRegisteredException`, `InvalidUsernameException`, `UserTypeNotFoundException`, `CompanyNotFoundException`, `RoleNotFoundException` (si el rol no existe o no pertenece a la empresa), `RoleRequiredException` (falta `roleId` y no es Super Administrador) |
 | `UpdateUserUseCase` | Edita `email` y `fullName` (`User.updateProfile`) — a propósito no toca `username`, contraseña, ni empresa/rol | `UserNotFoundException` |
 | `DeactivateUserUseCase` | Desactiva un usuario | `UserNotFoundException` |
 | `ChangeUserTypeUseCase` | Cambia el `UserType` de un usuario — valida que pertenezca a la empresa activa de quien hace el cambio | `UserNotFoundException`, `UserTypeNotFoundException` |
@@ -101,6 +104,8 @@ diferencias a propósito:
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-25 — Un Super Administrador se registra sin empresa ni rol](../user-company/changes/2026-09-25-super-admin-sin-user-company.md)
+- [2026-09-25 — Solo un Super Administrador ve y crea usuarios Super Administrador](../user-type/changes/2026-09-25-solo-super-admin-ve-y-crea-super-admin.md)
 - [2026-09-06 — "Mi perfil": editar datos personales y cambiar contraseña](./changes/2026-09-06-mi-perfil.md)
 - [2026-09-03 — Editar usuario, búsqueda de servidor y filtro de dados de baja](./changes/2026-09-03-editar-usuario-y-busqueda.md)
 - [2026-09-02 — Listado de usuarios paginado](./changes/2026-09-02-listar-usuarios-paginado.md)

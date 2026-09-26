@@ -19,10 +19,15 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import {
   PROPERTY_REPOSITORY,
   type PropertyRepository,
 } from '@domain/property/repositories/property.repository';
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
 import {
   TRANSACTION_MANAGER,
   type TransactionManager,
@@ -45,6 +50,8 @@ export class UpdateKardexEntryUseCase {
     private readonly movementTypeRepository: MovementTypeRepository,
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
     @Inject(TRANSACTION_MANAGER)
@@ -61,6 +68,24 @@ export class UpdateKardexEntryUseCase {
       investmentRepository: this.investmentRepository,
       propertyRepository: this.propertyRepository,
     });
+
+    // El tipo de inversión es fijo (no se edita) — resolverlo acá, antes de
+    // armar los deltas, alcanza (no hace falta releerlo adentro de la
+    // transacción como a `investment` mismo).
+    const investmentForType = await this.investmentRepository.findById(
+      entry.investmentId,
+    );
+    if (!investmentForType) {
+      throw new InvestmentNotFoundException(entry.investmentId);
+    }
+    const investmentType = await this.investmentTypeRepository.findById(
+      investmentForType.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(
+        investmentForType.investmentTypeId,
+      );
+    }
 
     const [oldMovementType, newMovementType] = await Promise.all([
       this.resolveMovementType(entry.fields.movementTypeId),
@@ -93,6 +118,8 @@ export class UpdateKardexEntryUseCase {
     // puede rechazar la edición por "saldo insuficiente" de forma espuria.
     const oldDelta = computeMovementDelta({
       movementType: oldMovementType,
+      investmentType,
+      avgWeight: entry.fields.avgWeight,
       entryQuantity: entry.fields.entryQuantity,
       entryKilos: entry.fields.entryKilos,
       exitQuantity: entry.fields.exitQuantity,
@@ -101,6 +128,8 @@ export class UpdateKardexEntryUseCase {
     });
     const newDelta = computeMovementDelta({
       movementType: newMovementType,
+      investmentType,
+      avgWeight: newFields.avgWeight,
       entryQuantity: newFields.entryQuantity,
       entryKilos: newFields.entryKilos,
       exitQuantity: newFields.exitQuantity,

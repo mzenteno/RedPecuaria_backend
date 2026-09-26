@@ -1,4 +1,10 @@
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 export class RegisterUserRequestDto {
   @IsString()
@@ -27,7 +33,11 @@ export class RegisterUserRequestDto {
   // (`@CurrentUser('companyId')` en el controller), nunca un valor libre del
   // body — ver `RegisterUserInput`.
 
+  // Opcional: obligatorio salvo que `userTypeId` sea Super Administrador
+  // (`RoleRequiredException` si falta y no lo es) — un Super Administrador
+  // no pertenece a ninguna empresa puntual, ver `RegisterUserUseCase`.
+  @IsOptional()
   @IsString()
   @MinLength(1)
-  roleId: string;
+  roleId?: string;
 }

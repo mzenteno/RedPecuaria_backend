@@ -1,8 +1,9 @@
 # Role (Rol)
 
-**Estado de implementación:** ✅ Fase 1, Fase 2 (seed: rol "Administrador"), Fase 3 (dominio +
-persistencia), Fase 6 (casos de uso) y `RoleController` (HTTP) completas — protegido por el
-guard (Fase 9), sin autorización por permiso todavía (ver `docs/permission/permission.md`).
+**Estado de implementación:** ✅ Fase 1, Fase 2 (seed: empresa "Empresa" + catálogo de menús — sin
+ningún rol sembrado desde el 2026-09-25, ver "Reglas de negocio actuales"), Fase 3 (dominio +
+persistencia), Fase 6 (casos de uso) y `RoleController` (HTTP) completas — protegido por el guard
+(Fase 9), sin autorización por permiso todavía (ver `docs/permission/permission.md`).
 
 ## Propósito
 
@@ -27,9 +28,14 @@ erDiagram
 
 ## Reglas de negocio actuales
 
-- **Cada empresa crea y administra sus propios roles** — no existen roles globales fijos
-  (no hay un enum cerrado tipo `ADMIN`/`INVESTOR`; dos empresas distintas pueden llamar a sus
-  roles como quieran, incluso con el mismo nombre, sin conflicto entre sí).
+- **Cada empresa crea y administra sus propios roles** — no hay un enum cerrado tipo
+  `ADMIN`/`INVESTOR`; dos empresas distintas pueden llamar a sus roles como quieran, incluso con
+  el mismo nombre, sin conflicto entre sí. **Sin roles globales ni protegidos**: la migración
+  inicial sembraba antes un rol "Super Administrador"/"Administrador" con permisos completos —
+  se sacó por completo el 2026-09-25 (junto con la fila de `user_companies` que lo usaba), porque
+  un Super Administrador no necesita ningún `Role`: ve todas las empresas y tiene acceso total a
+  todos los menús por su `UserType`, no por membresía — ver
+  [changes/2026-09-25-super-admin-sin-user-company.md](../user-company/changes/2026-09-25-super-admin-sin-user-company.md).
 - El nombre de un rol es único **dentro de su empresa** (`UNIQUE(company_id, name)`).
 - No hay auto-creación de un rol por defecto al crear una empresa: los roles se crean
   manualmente vía el CRUD de roles (pantalla dedicada).
@@ -75,6 +81,8 @@ empresa activa de la sesión (ver `CompanySwitcher` en `ARCHITECTURE.md` del fro
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-25 — Sin rol ni user_company para un Super Administrador](../user-company/changes/2026-09-25-super-admin-sin-user-company.md)
+- [2026-09-25 — (superado el mismo día) El rol Super Administrador (id=1) queda protegido](./changes/2026-09-25-rol-super-administrador-protegido.md)
 - [2026-09-04 — Roles sin `companyId` en la URL](./changes/2026-09-04-roles-sin-companyid-en-url.md)
 - [2026-09-02 — Controladores CRUD + CORS](../company/changes/2026-09-02-controladores-crud.md)
 - [2026-08-31 — Fase 6: casos de uso CRUD de roles](./changes/2026-08-31-fase-6-casos-de-uso-role.md)

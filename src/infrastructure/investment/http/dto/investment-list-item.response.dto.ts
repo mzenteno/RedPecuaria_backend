@@ -14,6 +14,8 @@ export class InvestmentListItemResponseDto {
   id: string;
   propertyId: string;
   propertyName: string;
+  investmentTypeId: string;
+  investmentTypeName: string;
   gestion: number;
   description: string;
   isFinished: boolean;

@@ -20,13 +20,12 @@ export class KardexEntryMapper {
       entry,
       runningBalanceQuantity,
       runningBalanceKilos,
+      runningBalanceTotal,
       movementTypeName,
       investorName,
+      debe,
+      haber,
     } = item;
-    // Ingreso es "Debe" (dinero que entra), Venta/Baja son "Haber" (dinero
-    // que sale/se recupera) — Baja nunca tiene `total` (siempre 0, ver
-    // `KardexEntry`), así que su "Haber" da 0 sin caso especial.
-    const isIngreso = movementTypeName === 'ingreso';
     return {
       id: entry.id,
       entryDate: entry.fields.entryDate,
@@ -40,8 +39,9 @@ export class KardexEntryMapper {
       exitKilos: entry.fields.exitKilos,
       runningBalanceQuantity,
       runningBalanceKilos,
-      debe: isIngreso ? entry.fields.total : 0,
-      haber: isIngreso ? 0 : entry.fields.total,
+      runningBalanceTotal,
+      debe,
+      haber,
     };
   }
 }

@@ -10,6 +10,11 @@ import {
 } from '@domain/property/repositories/property.repository';
 import { PropertyNotFoundException } from '@domain/property/exceptions/property-not-found.exception';
 import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
+import {
   USER_REPOSITORY,
   type UserRepository,
 } from '@domain/user/repositories/user.repository';
@@ -29,6 +34,9 @@ import { validateInvestors } from '../validate-investors';
 
 export interface CreateInvestmentInput {
   propertyId: string;
+  /** Fijo desde la creación — nunca se edita después (ver
+   * `UpdateInvestmentUseCase`, que no lo toca). */
+  investmentTypeId: string;
   companyId: string;
   gestion: number;
   description: string;
@@ -45,6 +53,8 @@ export class CreateInvestmentUseCase {
   constructor(
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
@@ -56,12 +66,21 @@ export class CreateInvestmentUseCase {
     private readonly transactionManager: TransactionManager,
   ) {}
 
-  async execute(
-    input: CreateInvestmentInput,
-  ): Promise<{ investment: Investment; propertyName: string }> {
+  async execute(input: CreateInvestmentInput): Promise<{
+    investment: Investment;
+    propertyName: string;
+    investmentTypeName: string;
+  }> {
     const property = await this.propertyRepository.findById(input.propertyId);
     if (!property || property.companyId !== input.companyId) {
       throw new PropertyNotFoundException(input.propertyId);
+    }
+
+    const investmentType = await this.investmentTypeRepository.findById(
+      input.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(input.investmentTypeId);
     }
 
     await validateInvestors(input.investorUserIds, input.companyId, {
@@ -73,6 +92,7 @@ export class CreateInvestmentUseCase {
     const investment = await this.transactionManager.run(async (ctx) => {
       const investment = Investment.create({
         propertyId: input.propertyId,
+        investmentTypeId: investmentType.id,
         gestion: input.gestion,
         description: input.description,
       });
@@ -84,8 +104,13 @@ export class CreateInvestmentUseCase {
       );
       return saved;
     });
-    // `property` ya está cargada (arriba, para validar) — se reusa su
-    // nombre en vez de que el controller pida el catálogo aparte.
-    return { investment, propertyName: property.name };
+    // `property`/`investmentType` ya están cargadas (arriba, para validar)
+    // — se reusan sus nombres en vez de que el controller pida el catálogo
+    // aparte.
+    return {
+      investment,
+      propertyName: property.name,
+      investmentTypeName: investmentType.name,
+    };
   }
 }

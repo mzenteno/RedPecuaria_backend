@@ -5,6 +5,11 @@ import {
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
+import {
+  INVESTMENT_TYPE_REPOSITORY,
+  type InvestmentTypeRepository,
+} from '@domain/investment/repositories/investment-type.repository';
+import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
 import { PropertyNotFoundException } from '@domain/property/exceptions/property-not-found.exception';
 import {
   PROPERTY_REPOSITORY,
@@ -43,6 +48,8 @@ export class UpdateInvestmentUseCase {
   constructor(
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
+    @Inject(INVESTMENT_TYPE_REPOSITORY)
+    private readonly investmentTypeRepository: InvestmentTypeRepository,
     @Inject(PROPERTY_REPOSITORY)
     private readonly propertyRepository: PropertyRepository,
     @Inject(USER_REPOSITORY) private readonly userRepository: UserRepository,
@@ -54,14 +61,26 @@ export class UpdateInvestmentUseCase {
     private readonly transactionManager: TransactionManager,
   ) {}
 
-  async execute(
-    input: UpdateInvestmentInput,
-  ): Promise<{ investment: Investment; propertyName: string }> {
+  async execute(input: UpdateInvestmentInput): Promise<{
+    investment: Investment;
+    propertyName: string;
+    investmentTypeName: string;
+  }> {
     const investment = await this.investmentRepository.findById(
       input.investmentId,
     );
     if (!investment) {
       throw new InvestmentNotFoundException(input.investmentId);
+    }
+
+    // Fijo desde la creación (`Investment.update` no lo toca) — se resuelve
+    // acá solo para poder devolver el nombre en la respuesta, no para
+    // validar nada (no viene en `input`, no se puede cambiar).
+    const investmentType = await this.investmentTypeRepository.findById(
+      investment.investmentTypeId,
+    );
+    if (!investmentType) {
+      throw new InvestmentTypeNotFoundException(investment.investmentTypeId);
     }
 
     const property = await this.propertyRepository.findById(
@@ -109,6 +128,10 @@ export class UpdateInvestmentUseCase {
       );
       return saved;
     });
-    return { investment: saved, propertyName: finalProperty.name };
+    return {
+      investment: saved,
+      propertyName: finalProperty.name,
+      investmentTypeName: investmentType.name,
+    };
   }
 }

@@ -53,6 +53,13 @@ erDiagram
   `isInvestor: boolean` en el payload — el frontend lo usa para elegir entre el dashboard de
   Inversionista (sus propias inversiones) o el de Administrador/Super Administrador (agregados
   de la empresa activa). Ver `docs/dashboard/dashboard.md`.
+- **Quién ve y quién puede crear un usuario Super Administrador** (2026-09-25): en `GET /users`
+  las filas de tipo "Super Administrador" se filtran (no se muestran) si quien pide el listado no
+  es Super Administrador (`ListUsersUseCase`/`UserRepositoryAdapter.findAllPaginated`). Crear un
+  usuario nuevo con ese tipo (`POST /users`), o ascender a uno existente (`PATCH
+  /users/:id/user-type`), tira `SuperAdminUserTypeForbiddenException` (`FORBIDDEN`) si quien lo
+  pide no es ya Super Administrador — ver
+  [changes/2026-09-25-solo-super-admin-ve-y-crea-super-admin.md](./changes/2026-09-25-solo-super-admin-ve-y-crea-super-admin.md).
 
 ## Casos de uso (Application)
 
@@ -70,6 +77,7 @@ erDiagram
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-09-25 — Solo un Super Administrador ve y crea usuarios Super Administrador](./changes/2026-09-25-solo-super-admin-ve-y-crea-super-admin.md)
 - [2026-09-02 — Super Administrador y visibilidad de empresas](./changes/2026-09-02-super-administrador-y-visibilidad-de-empresas.md)
 - [2026-09-02 — Controladores CRUD + CORS](../company/changes/2026-09-02-controladores-crud.md)
 - [2026-08-31 — Caso de uso de solo lectura](./changes/2026-08-31-list-user-types-use-case.md)

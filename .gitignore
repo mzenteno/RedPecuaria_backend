@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# archivos subidos en runtime (ej. logos de empresa) — nunca versionados
+/uploads
+
 # Logs
 logs
 *.log
