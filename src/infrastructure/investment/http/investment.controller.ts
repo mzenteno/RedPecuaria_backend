@@ -236,6 +236,9 @@ export class InvestmentController {
       pageSize,
       investorUserId: userId,
       companyId,
+      isFinished:
+        query.status === undefined ? undefined : query.status === 'finished',
+      orderByGestion: true,
     });
     return {
       data: result.items.map(

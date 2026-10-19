@@ -9,13 +9,12 @@ export const KARDEX_ENTRY_REPOSITORY = Symbol('KardexEntryRepository');
 
 export interface FindKardexEntriesParams extends PaginationParams {
   investmentId: string;
-  /** Si viene, los movimientos "venta" se filtran a los que le corresponden
-   * a este inversionista puntual — "ingreso"/"baja" nunca se filtran (son
-   * generales, sin inversionista, ver `docs/investment/investment.md`). Se
-   * manda solo cuando quien pide el listado es de tipo Inversionista; un
-   * Administrador/Super Administrador ve todas las ventas (sin este
-   * parámetro). */
-  restrictSalesToInvestorId?: string;
+  /** El Kardex ahora SIEMPRE se pide acotado a un inversionista puntual (a
+   * pedido del usuario, 2026-10-14) — todas las filas (no solo "venta") se
+   * filtran a las de este inversionista, y el saldo corrido se calcula ya
+   * acotado a él. Ver `ListKardexEntriesByInvestmentUseCase` para el chequeo
+   * de que un Inversionista solo puede pedir su propio `investorUserId`. */
+  investorUserId: string;
   /** `Investment.investmentTypeId` resuelto a `isDinero()` — decide si una
    * Baja tiene "Haber" o no: en modo "kilo", `avgWeight` de una Baja es
    * merma en KILOS (no hay ningún dato de dinero cargado en esa fila, ver
@@ -47,7 +46,8 @@ export interface KardexEntryWithRunningBalance {
   /** Nombre del tipo de movimiento y del inversionista, resueltos con JOIN
    * en la misma consulta — nunca con un segundo fetch aparte cruzado a mano
    * del lado del cliente (mismo criterio que `UserWithType`, ver el change
-   * de este cambio). `investorName` es `null` salvo en "venta". */
+   * de este cambio). `investorName` solo es `null` en movimientos
+   * históricos sin inversionista (ver `assertKardexInvestor`). */
   movementTypeName: string;
   investorName: string | null;
   /** Reformulación contable de esta fila — Ingreso es "Debe", Venta/Baja
@@ -79,11 +79,16 @@ export interface KardexEntryRepository {
     params: FindKardexEntriesParams,
     ctx?: TransactionContext,
   ): Promise<KardexEntriesPage>;
-  /** Para la regla "la primera transacción de una inversión siempre es
-   * ingreso" (ver `CreateKardexEntryUseCase`) — solo necesita saber si ya
-   * existe alguna fila activa, no traerlas. */
+  /** Para la regla "la primera transacción de un inversionista en una
+   * inversión siempre es ingreso" (ver `CreateKardexEntryUseCase`) — por
+   * INVERSIONISTA, no por inversión completa (desde 2026-10-14 cada
+   * inversionista tiene su propio saldo corrido, ver `InvestmentInvestor`):
+   * un inversionista nuevo en una inversión con historial ajeno también
+   * tiene que arrancar con un ingreso propio. Solo necesita saber si ya
+   * existe alguna fila activa de ESE inversionista, no traerlas. */
   hasAnyActiveEntry(
     investmentId: string,
+    investorUserId: string,
     ctx?: TransactionContext,
   ): Promise<boolean>;
   save(entry: KardexEntry, ctx?: TransactionContext): Promise<KardexEntry>;

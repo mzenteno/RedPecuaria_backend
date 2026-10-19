@@ -17,9 +17,10 @@ export interface InvestmentPersistence {
   total: number;
   /** Estado de negocio (activa/terminada) — a diferencia de `isDeleted`
    * (baja administrativa, oculta el registro), esto es información sobre
-   * el ciclo de vida de la inversión: sigue totalmente visible y operable,
-   * solo indica que ya se vendió todo el stock. Nunca se calcula solo — lo
-   * marca el usuario a mano (ver `docs/investment/investment.md`). */
+   * el ciclo de vida de la inversión. Desde 2026-10-19 es un valor DERIVADO
+   * y guardado (mismo criterio que `balance*`): `true` cuando todos sus
+   * inversionistas están terminados (`InvestmentInvestor.isFinished`, que
+   * sí se marca a mano) — ver `syncInvestmentFinished`. */
   isFinished: boolean;
   isDeleted: boolean;
   createdAt: Date;
@@ -156,21 +157,22 @@ export class Investment {
    * propiedad está asociada. El caso de uso (`UpdateInvestmentUseCase`)
    * valida que la propiedad nueva exista y sea de la empresa activa antes
    * de llamar acá — la entidad no conoce `Property` ni `companyId`.
-   *
-   * `isFinished` es una elección manual del usuario, no un cálculo — nada
-   * acá revisa `balanceQuantity`/`balanceKilos` para forzarlo. La idea de
-   * uso es que el usuario lo marque cuando el saldo llegue a 0, pero eso no
-   * se valida ni se fuerza (ver docs/investment/investment.md). */
+   * `isFinished` ya no se edita acá, ver `syncFinished`. */
   update(props: {
     propertyId: string;
     gestion: number;
     description: string;
-    isFinished: boolean;
   }): void {
     this._propertyId = props.propertyId;
     this._gestion = props.gestion;
     this._description = props.description;
-    this._isFinished = props.isFinished;
+  }
+
+  /** Recalcula el estado derivado — quien llama
+   * (`syncInvestmentFinished`) resuelve si todos los inversionistas están
+   * terminados; esta entidad no conoce `InvestmentInvestor`. */
+  syncFinished(allInvestorsFinished: boolean): void {
+    this._isFinished = allInvestorsFinished;
   }
 
   /**

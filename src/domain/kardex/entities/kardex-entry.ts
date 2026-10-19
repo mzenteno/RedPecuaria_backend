@@ -12,8 +12,9 @@ export interface KardexEntryPersistence {
    * `domain/kardex/entities/movement-type.ts`) — nunca un string literal
    * acá, mismo criterio que `User.userTypeId`. */
   movementTypeId: string;
-  /** Solo presente si el tipo de movimiento es "venta" — validado contra
-   * los inversionistas de la inversión, ver `assertKardexInvestor`. */
+  /** Obligatorio en todo movimiento (ingreso/baja/venta) — validado contra
+   * los inversionistas de la inversión, ver `assertKardexInvestor`. Puede
+   * ser `null` solo en movimientos históricos creados antes de 2026-10-14. */
   investorUserId: string | null;
   /** En Ingreso/Venta, calculado (`kilos o total / cantidad`, ver
    * `KardexEntryDialog`). En Baja es un dato manual — y a diferencia de

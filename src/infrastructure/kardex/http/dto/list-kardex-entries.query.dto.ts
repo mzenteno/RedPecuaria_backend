@@ -14,6 +14,12 @@ export class ListKardexEntriesQueryDto {
   @MinLength(1)
   investmentId: string;
 
+  /** Obligatorio — el Kardex siempre se pide acotado a un inversionista
+   * puntual, ver `assertKardexInvestor`/`ListKardexEntriesByInvestmentUseCase`. */
+  @IsString()
+  @MinLength(1)
+  investorUserId: string;
+
   /** Coincidencia parcial en `detail` (ver
    * `KardexEntryRepositoryAdapter.findActiveByInvestment`). */
   @IsOptional()

@@ -32,6 +32,7 @@ import {
   type TransactionManager,
 } from '@domain/core/ports/transaction-manager.port';
 import { validateInvestors } from '../validate-investors';
+import { syncInvestmentFinished } from '../sync-investment-finished';
 
 export interface UpdateInvestmentInput {
   investmentId: string;
@@ -40,7 +41,6 @@ export interface UpdateInvestmentInput {
   gestion: number;
   description: string;
   investorUserIds: string[];
-  isFinished: boolean;
 }
 
 @Injectable()
@@ -118,7 +118,6 @@ export class UpdateInvestmentUseCase {
         propertyId: input.propertyId,
         gestion: input.gestion,
         description: input.description,
-        isFinished: input.isFinished,
       });
       const saved = await this.investmentRepository.save(investment, ctx);
       await this.investmentRepository.replaceInvestors(
@@ -126,7 +125,9 @@ export class UpdateInvestmentUseCase {
         input.investorUserIds,
         ctx,
       );
-      return saved;
+      // Cambiar la lista puede cambiar el estado derivado — ver
+      // `syncInvestmentFinished`.
+      return syncInvestmentFinished(saved, this.investmentRepository, ctx);
     });
     return {
       investment: saved,

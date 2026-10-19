@@ -12,9 +12,7 @@ import {
 export interface ListUsersInput extends PaginationParams {
   companyId: string;
   /** Viene tal cual del JWT (`@CurrentUser('isSuperAdmin')`) — se traduce
-   * acá a `excludeSuperAdmins` para el repositorio, mismo criterio que
-   * `viewerIsInvestor` → `restrictSalesToInvestorId` en
-   * `ListKardexEntriesByInvestmentUseCase` (a pedido del usuario,
+   * acá a `excludeSuperAdmins` para el repositorio (a pedido del usuario,
    * 2026-09-25: alguien que no es Super Administrador no puede ver
    * usuarios de ese tipo en el listado). */
   viewerIsSuperAdmin: boolean;

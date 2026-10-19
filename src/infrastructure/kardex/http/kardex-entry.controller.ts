@@ -14,10 +14,12 @@ import { UpdateKardexEntryUseCase } from '@application/kardex/use-cases/update-k
 import { DeactivateKardexEntryUseCase } from '@application/kardex/use-cases/deactivate-kardex-entry.use-case';
 import { ListKardexEntriesByInvestmentUseCase } from '@application/kardex/use-cases/list-kardex-entries-by-investment.use-case';
 import { GetKardexEntryByIdUseCase } from '@application/kardex/use-cases/get-kardex-entry-by-id.use-case';
+import { SetKardexInvestorFinishedUseCase } from '@application/kardex/use-cases/set-kardex-investor-finished.use-case';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreateKardexEntryRequestDto } from './dto/create-kardex-entry.request.dto';
 import { UpdateKardexEntryRequestDto } from './dto/update-kardex-entry.request.dto';
 import { ListKardexEntriesQueryDto } from './dto/list-kardex-entries.query.dto';
+import { SetKardexInvestorFinishedRequestDto } from './dto/set-kardex-investor-finished.request.dto';
 import { KardexEntryResponseDto } from './dto/kardex-entry.response.dto';
 import { KardexEntryListItemResponseDto } from './dto/kardex-entry-list-item.response.dto';
 import { KardexEntryMapper } from './kardex-entry.mapper';
@@ -37,6 +39,7 @@ export class KardexEntryController {
     private readonly deactivateKardexEntryUseCase: DeactivateKardexEntryUseCase,
     private readonly listKardexEntriesByInvestmentUseCase: ListKardexEntriesByInvestmentUseCase,
     private readonly getKardexEntryByIdUseCase: GetKardexEntryByIdUseCase,
+    private readonly setKardexInvestorFinishedUseCase: SetKardexInvestorFinishedUseCase,
   ) {}
 
   @Post()
@@ -49,6 +52,21 @@ export class KardexEntryController {
       ...dto,
     });
     return KardexEntryMapper.toResponse(entry);
+  }
+
+  /** "Finalizar"/"Reactivar" la parte de UN inversionista en una inversión
+   * (ver `SetKardexInvestorFinishedUseCase`). Ruta literal declarada ANTES
+   * de `@Patch(':id')` — si no, `:id` la capturaría como un id. */
+  @Patch('investor-status')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async setInvestorFinished(
+    @Body() dto: SetKardexInvestorFinishedRequestDto,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<void> {
+    await this.setKardexInvestorFinishedUseCase.execute({
+      companyId,
+      ...dto,
+    });
   }
 
   @Patch(':id')
@@ -81,9 +99,13 @@ export class KardexEntryController {
    * `meta` trae `totalDebe`/`totalHaber` además de lo de siempre — la suma
    * de TODO el historial activo de la inversión (no solo la página), para
    * el footer de la tabla del frontend (ver `KardexEntriesPage` del
-   * dominio, y el change de este cambio). No se agranda
+   * dominio, y el change de este cambio). También trae el saldo VIGENTE del
+   * inversionista (`investorBalance*`, ver `ListKardexEntriesByInvestmentResult`)
+   * — "Saldo actual" en el frontend ya no puede salir de
+   * `Investment.balanceQuantity`/`balanceKilos`/`total` (eso es el agregado
+   * de TODOS los inversionistas desde 2026-10-14). No se agranda
    * `PaginatedResponseDto`/`PaginationMeta` para esto — son compartidos por
-   * cualquier listado paginado de la app, que no necesita estos 2 campos.
+   * cualquier listado paginado de la app, que no necesita estos campos.
    */
   @Get()
   async list(
@@ -93,7 +115,14 @@ export class KardexEntryController {
     @CurrentUser('sub') userId: string,
   ): Promise<
     PaginatedResponseDto<KardexEntryListItemResponseDto> & {
-      meta: { totalDebe: number; totalHaber: number };
+      meta: {
+        totalDebe: number;
+        totalHaber: number;
+        investorBalanceQuantity: number;
+        investorBalanceKilos: number;
+        investorTotal: number;
+        investorIsFinished: boolean;
+      };
     }
   > {
     const page = query.page ?? DEFAULT_PAGE;
@@ -102,6 +131,7 @@ export class KardexEntryController {
       page,
       pageSize,
       investmentId: query.investmentId,
+      investorUserId: query.investorUserId,
       companyId,
       search: query.search,
       viewerIsInvestor: isInvestor,
@@ -115,6 +145,10 @@ export class KardexEntryController {
         pageSize: result.pageSize,
         totalDebe: result.totalDebe,
         totalHaber: result.totalHaber,
+        investorBalanceQuantity: result.investorBalanceQuantity,
+        investorBalanceKilos: result.investorBalanceKilos,
+        investorTotal: result.investorTotal,
+        investorIsFinished: result.investorIsFinished,
       },
     };
   }

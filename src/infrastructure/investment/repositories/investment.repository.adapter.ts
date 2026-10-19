@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { TransactionContext } from '@domain/core/ports/transaction-manager.port';
 import { Investment } from '@domain/investment/entities/investment';
+import { InvestmentInvestor } from '@domain/investment/entities/investment-investor';
 import {
   InvestmentRepository,
   FindInvestmentsByInvestorParams,
@@ -60,9 +61,20 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
         search: `%${params.search}%`,
       });
     }
+    if (params.isFinished !== undefined) {
+      query.andWhere('ii.is_finished = :isFinished', {
+        isFinished: params.isFinished,
+      });
+    }
+    if (params.orderByGestion) {
+      query
+        .orderBy('investment.gestion', 'ASC')
+        .addOrderBy('investment.created_at', 'DESC');
+    } else {
+      query.orderBy('investment.created_at', 'DESC');
+    }
 
     const [rows, total] = await query
-      .orderBy('investment.created_at', 'DESC')
       .skip((params.page - 1) * params.pageSize)
       .take(params.pageSize)
       .getManyAndCount();
@@ -197,11 +209,30 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
     ctx?: TransactionContext,
   ): Promise<void> {
     const repo = this.investorRepository(ctx);
-    await repo.delete({ investmentId });
-    if (userIds.length === 0) {
+    // No se puede borrar y recrear todo a lo bruto como antes: desde que
+    // esta fila lleva su propio saldo (`balance_quantity`/`balance_kilos`/
+    // `total`, ver `InvestmentInvestor`), borrar y recrear a un inversionista
+    // que YA estaba le resetearía el saldo a 0 en cada edición de la
+    // inversión (este método se llama siempre, aunque la lista de
+    // inversionistas no haya cambiado — ver `UpdateInvestmentUseCase`). Solo
+    // se borran los que de verdad se sacan, y solo se insertan los de verdad
+    // nuevos; los que quedan igual no se tocan.
+    const existing = await repo.find({ where: { investmentId } });
+    const existingUserIds = new Set(existing.map((row) => row.userId));
+    const nextUserIds = new Set(userIds);
+
+    const removedUserIds = existing
+      .filter((row) => !nextUserIds.has(row.userId))
+      .map((row) => row.userId);
+    if (removedUserIds.length > 0) {
+      await repo.delete({ investmentId, userId: In(removedUserIds) });
+    }
+
+    const addedUserIds = userIds.filter((id) => !existingUserIds.has(id));
+    if (addedUserIds.length === 0) {
       return;
     }
-    const rows = userIds.map((userId) => {
+    const rows = addedUserIds.map((userId) => {
       const row = new InvestmentInvestorEntity();
       row.investmentId = investmentId;
       row.userId = userId;
@@ -209,6 +240,70 @@ export class InvestmentRepositoryAdapter implements InvestmentRepository {
       return row;
     });
     await repo.save(rows);
+  }
+
+  async findInvestmentInvestor(
+    investmentId: string,
+    userId: string,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor | null> {
+    const row = await this.investorRepository(ctx).findOne({
+      where: { investmentId, userId },
+    });
+    return row ? this.investorToDomain(row) : null;
+  }
+
+  async findInvestmentInvestors(
+    investmentId: string,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor[]> {
+    const rows = await this.investorRepository(ctx).find({
+      where: { investmentId },
+    });
+    return rows.map((row) => this.investorToDomain(row));
+  }
+
+  async saveInvestmentInvestor(
+    investmentInvestor: InvestmentInvestor,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor> {
+    const saved = await this.investorRepository(ctx).save(
+      this.investorToEntity(investmentInvestor),
+    );
+    return this.investorToDomain(saved);
+  }
+
+  private investorToDomain(row: InvestmentInvestorEntity): InvestmentInvestor {
+    return InvestmentInvestor.fromPersistence({
+      id: row.id,
+      investmentId: row.investmentId,
+      userId: row.userId,
+      // `numeric` vuelve como string con el driver `pg` — mismo gotcha que
+      // en `Investment`/`KardexEntry`.
+      balanceQuantity: row.balanceQuantity,
+      balanceKilos: Number(row.balanceKilos),
+      total: Number(row.total),
+      isFinished: row.isFinished,
+      createdAt: row.createdAt,
+    });
+  }
+
+  private investorToEntity(
+    investmentInvestor: InvestmentInvestor,
+  ): InvestmentInvestorEntity {
+    const snapshot = investmentInvestor.toPersistence();
+    const row = new InvestmentInvestorEntity();
+    if (snapshot.id !== null) {
+      row.id = snapshot.id;
+    }
+    row.investmentId = snapshot.investmentId;
+    row.userId = snapshot.userId;
+    row.balanceQuantity = snapshot.balanceQuantity;
+    row.balanceKilos = snapshot.balanceKilos;
+    row.total = snapshot.total;
+    row.isFinished = snapshot.isFinished;
+    row.createdAt = snapshot.createdAt;
+    return row;
   }
 
   private repository(ctx?: TransactionContext): Repository<InvestmentEntity> {

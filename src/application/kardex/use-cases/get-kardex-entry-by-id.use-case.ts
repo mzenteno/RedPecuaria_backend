@@ -6,10 +6,6 @@ import {
 } from '@domain/kardex/repositories/kardex-entry.repository';
 import { KardexEntryNotFoundException } from '@domain/kardex/exceptions/kardex-entry-not-found.exception';
 import {
-  MOVEMENT_TYPE_REPOSITORY,
-  type MovementTypeRepository,
-} from '@domain/kardex/repositories/movement-type.repository';
-import {
   INVESTMENT_REPOSITORY,
   type InvestmentRepository,
 } from '@domain/investment/repositories/investment.repository';
@@ -23,9 +19,10 @@ export interface GetKardexEntryByIdInput {
   entryId: string;
   companyId: string;
   /** Mismo criterio que `ListKardexEntriesByInvestmentUseCase`: un
-   * Inversionista no puede pedir por id una venta que no es suya, aunque
-   * conozca el id — el listado ya se la oculta, esto es la misma regla
-   * para cuando se pide una fila puntual. */
+   * Inversionista no puede pedir por id un movimiento que no es suyo,
+   * aunque conozca el id — el listado ya se lo oculta (ahora siempre
+   * acotado a un inversionista, ver `assertKardexInvestor`), esto es la
+   * misma regla para cuando se pide una fila puntual. */
   viewerIsInvestor: boolean;
   viewerUserId: string;
 }
@@ -43,8 +40,6 @@ export class GetKardexEntryByIdUseCase {
   constructor(
     @Inject(KARDEX_ENTRY_REPOSITORY)
     private readonly kardexEntryRepository: KardexEntryRepository,
-    @Inject(MOVEMENT_TYPE_REPOSITORY)
-    private readonly movementTypeRepository: MovementTypeRepository,
     @Inject(INVESTMENT_REPOSITORY)
     private readonly investmentRepository: InvestmentRepository,
     @Inject(PROPERTY_REPOSITORY)
@@ -62,18 +57,13 @@ export class GetKardexEntryByIdUseCase {
       propertyRepository: this.propertyRepository,
     });
 
-    if (input.viewerIsInvestor) {
-      const movementType = await this.movementTypeRepository.findById(
-        entry.fields.movementTypeId,
-      );
-      const isOthersVenta =
-        movementType?.isVenta() &&
-        entry.fields.investorUserId !== input.viewerUserId;
-      if (isOthersVenta) {
-        // 404 genérico, no "sin permiso" — mismo criterio que
-        // `assertInvestmentOwnership`: no confirma que el movimiento exista.
-        throw new KardexEntryNotFoundException(input.entryId);
-      }
+    if (
+      input.viewerIsInvestor &&
+      entry.fields.investorUserId !== input.viewerUserId
+    ) {
+      // 404 genérico, no "sin permiso" — mismo criterio que
+      // `assertInvestmentOwnership`: no confirma que el movimiento exista.
+      throw new KardexEntryNotFoundException(input.entryId);
     }
 
     return entry;

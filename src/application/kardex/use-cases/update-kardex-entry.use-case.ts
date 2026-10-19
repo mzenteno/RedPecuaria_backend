@@ -32,9 +32,10 @@ import {
   TRANSACTION_MANAGER,
   type TransactionManager,
 } from '@domain/core/ports/transaction-manager.port';
+import { InvestmentInvestorNotFoundException } from '@domain/investment/exceptions/investment-investor-not-found.exception';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
 import { assertKardexInvestor } from '../assert-kardex-investor';
-import { computeMovementDelta } from '../compute-movement-delta';
+import { computeMovementDelta, negateDelta } from '../compute-movement-delta';
 
 export interface UpdateKardexEntryInput extends KardexEntryFields {
   entryId: string;
@@ -93,11 +94,18 @@ export class UpdateKardexEntryUseCase {
     ]);
 
     await assertKardexInvestor(
-      newMovementType,
       input.investorUserId,
       entry.investmentId,
       this.investmentRepository,
     );
+    // `assertKardexInvestor` ya garantiza que no es null acá.
+    const newInvestorUserId = input.investorUserId as string;
+    // El investorUserId VIEJO puede ser `null` si es un movimiento histórico
+    // (creado antes de 2026-10-14, cuando "ingreso"/"baja" eran generales,
+    // sin inversionista — ver `assertKardexInvestor`) — en ese caso su
+    // delta viejo nunca se aplicó a ningún `InvestmentInvestor`, así que no
+    // hay nada que revertirle a nadie, solo aplicar el nuevo.
+    const oldInvestorUserId = entry.fields.investorUserId;
 
     const newFields: KardexEntryFields = {
       entryDate: input.entryDate,
@@ -151,8 +159,51 @@ export class UpdateKardexEntryUseCase {
         throw new InvestmentNotFoundException(entry.investmentId);
       }
 
+      // `Investment.balance*` sigue siendo el agregado total — un cambio de
+      // inversionista entre viejo y nuevo no le afecta, el neto es el
+      // mismo. Las filas de `InvestmentInvestor` sí pueden ser DOS
+      // distintas si `oldInvestorUserId !== newInvestorUserId` — se revierte
+      // el delta viejo de quien lo tenía (si tenía, ver el comentario de
+      // `oldInvestorUserId` arriba) y se aplica el nuevo a quien corresponda
+      // ahora, en vez de un solo `netDelta` (que solo tendría sentido si
+      // fuera siempre la misma fila).
       investment.applyBalanceDelta(netDelta);
       await this.investmentRepository.save(investment, ctx);
+
+      if (oldInvestorUserId !== null) {
+        const oldInvestor =
+          await this.investmentRepository.findInvestmentInvestor(
+            entry.investmentId,
+            oldInvestorUserId,
+            ctx,
+          );
+        if (!oldInvestor) {
+          throw new InvestmentInvestorNotFoundException(
+            entry.investmentId,
+            oldInvestorUserId,
+          );
+        }
+        oldInvestor.applyBalanceDelta(negateDelta(oldDelta));
+        await this.investmentRepository.saveInvestmentInvestor(
+          oldInvestor,
+          ctx,
+        );
+      }
+
+      const newInvestor =
+        await this.investmentRepository.findInvestmentInvestor(
+          entry.investmentId,
+          newInvestorUserId,
+          ctx,
+        );
+      if (!newInvestor) {
+        throw new InvestmentInvestorNotFoundException(
+          entry.investmentId,
+          newInvestorUserId,
+        );
+      }
+      newInvestor.applyBalanceDelta(newDelta);
+      await this.investmentRepository.saveInvestmentInvestor(newInvestor, ctx);
 
       entry.update(newFields);
       return this.kardexEntryRepository.save(entry, ctx);

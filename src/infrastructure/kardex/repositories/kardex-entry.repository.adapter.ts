@@ -44,7 +44,8 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
   ): Promise<KardexEntriesPage> {
     // Saldo corrido (cantidad/kilos) después de cada movimiento — calculado
     // acá con una función de ventana SQL sobre TODOS los movimientos activos
-    // de la inversión. Nunca se guarda (ver `KardexEntryWithRunningBalance`).
+    // de ESE inversionista en la inversión (`buildFilteredQuery` ya acota
+    // por `investorUserId`). Nunca se guarda (ver `KardexEntryWithRunningBalance`).
     // La fórmula replica `computeMovementDelta` (application/kardex) en
     // SQL: Ingreso suma cantidad/kilos, Baja solo resta cantidad (no toca
     // kilos), Venta resta cantidad y kilos.
@@ -172,8 +173,8 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
 
   /** Filtros compartidos por el conteo (`getCount`) y la consulta paginada
    * con saldo corrido — el join a `kardex_movement_types` es incondicional
-   * (no solo cuando hay `restrictSalesToInvestorId`) porque la fórmula del
-   * saldo corrido también necesita el nombre del tipo de movimiento. */
+   * porque la fórmula del saldo corrido también necesita el nombre del tipo
+   * de movimiento. */
   private buildFilteredQuery(
     params: FindKardexEntriesParams,
     ctx?: TransactionContext,
@@ -185,11 +186,16 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
         'movementType',
         'movementType.id = entry.movement_type_id',
       )
-      // `LEFT` (no `inner`): `investor_user_id` es nulo salvo en "venta" —
-      // resuelve el nombre para el listado, ver `findActiveByInvestment`.
+      // `LEFT` (no `inner`): los movimientos históricos de antes de
+      // 2026-10-14 pueden tener `investor_user_id` nulo (ver
+      // `assertKardexInvestor`) — resuelve el nombre para el listado, ver
+      // `findActiveByInvestment`.
       .leftJoin('users', 'investor', 'investor.id = entry.investor_user_id')
       .where('entry.investment_id = :investmentId', {
         investmentId: params.investmentId,
+      })
+      .andWhere('entry.investor_user_id = :investorUserId', {
+        investorUserId: params.investorUserId,
       })
       .andWhere('entry.is_deleted = false');
 
@@ -199,25 +205,16 @@ export class KardexEntryRepositoryAdapter implements KardexEntryRepository {
       });
     }
 
-    if (params.restrictSalesToInvestorId) {
-      // "ingreso"/"baja" pasan siempre (son generales, sin inversionista) —
-      // solo "venta" se filtra a las que le corresponden a este
-      // inversionista puntual.
-      query.andWhere(
-        "(movementType.name != 'venta' OR entry.investor_user_id = :restrictSalesToInvestorId)",
-        { restrictSalesToInvestorId: params.restrictSalesToInvestorId },
-      );
-    }
-
     return query;
   }
 
   async hasAnyActiveEntry(
     investmentId: string,
+    investorUserId: string,
     ctx?: TransactionContext,
   ): Promise<boolean> {
     const count = await this.repository(ctx).count({
-      where: { investmentId, isDeleted: false },
+      where: { investmentId, investorUserId, isDeleted: false },
     });
     return count > 0;
   }

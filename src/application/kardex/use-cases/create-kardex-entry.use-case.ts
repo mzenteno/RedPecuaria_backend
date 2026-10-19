@@ -27,6 +27,7 @@ import {
 import { InvestmentNotFoundException } from '@domain/investment/exceptions/investment-not-found.exception';
 import { InvestmentTypeNotFoundException } from '@domain/investment/exceptions/investment-type-not-found.exception';
 import { FirstKardexEntryMustBeIngresoException } from '@domain/kardex/exceptions/first-kardex-entry-must-be-ingreso.exception';
+import { InvestmentInvestorNotFoundException } from '@domain/investment/exceptions/investment-investor-not-found.exception';
 import {
   TRANSACTION_MANAGER,
   type TransactionManager,
@@ -77,19 +78,24 @@ export class CreateKardexEntryUseCase {
     }
 
     await assertKardexInvestor(
-      movementType,
       input.investorUserId,
       input.investmentId,
       this.investmentRepository,
     );
+    // `assertKardexInvestor` ya garantiza que no es null acá.
+    const investorUserId = input.investorUserId as string;
 
     // No puede haber una Baja o Venta sin stock previo — la primera
-    // transacción de una inversión siempre es Ingreso.
+    // transacción de CADA inversionista en una inversión siempre es Ingreso.
     const hasAnyEntry = await this.kardexEntryRepository.hasAnyActiveEntry(
       input.investmentId,
+      investorUserId,
     );
     if (!hasAnyEntry && !movementType.isIngreso()) {
-      throw new FirstKardexEntryMustBeIngresoException(input.investmentId);
+      throw new FirstKardexEntryMustBeIngresoException(
+        input.investmentId,
+        investorUserId,
+      );
     }
 
     return this.transactionManager.run(async (ctx) => {
@@ -125,19 +131,41 @@ export class CreateKardexEntryUseCase {
       });
       const saved = await this.kardexEntryRepository.save(entry, ctx);
 
-      investment.applyBalanceDelta(
-        computeMovementDelta({
-          movementType,
-          investmentType,
-          avgWeight: input.avgWeight,
-          entryQuantity: input.entryQuantity,
-          entryKilos: input.entryKilos,
-          exitQuantity: input.exitQuantity,
-          exitKilos: input.exitKilos,
-          total: input.total,
-        }),
-      );
+      const delta = computeMovementDelta({
+        movementType,
+        investmentType,
+        avgWeight: input.avgWeight,
+        entryQuantity: input.entryQuantity,
+        entryKilos: input.entryKilos,
+        exitQuantity: input.exitQuantity,
+        exitKilos: input.exitKilos,
+        total: input.total,
+      });
+
+      // `Investment.balance*` se mantiene como agregado de TODA la
+      // inversión (suma de sus inversionistas) — y, desde 2026-10-14, el
+      // mismo delta también se aplica al saldo propio del inversionista
+      // (ver `InvestmentInvestor`), en la misma transacción.
+      investment.applyBalanceDelta(delta);
       await this.investmentRepository.save(investment, ctx);
+
+      const investmentInvestor =
+        await this.investmentRepository.findInvestmentInvestor(
+          input.investmentId,
+          investorUserId,
+          ctx,
+        );
+      if (!investmentInvestor) {
+        throw new InvestmentInvestorNotFoundException(
+          input.investmentId,
+          investorUserId,
+        );
+      }
+      investmentInvestor.applyBalanceDelta(delta);
+      await this.investmentRepository.saveInvestmentInvestor(
+        investmentInvestor,
+        ctx,
+      );
 
       return saved;
     });

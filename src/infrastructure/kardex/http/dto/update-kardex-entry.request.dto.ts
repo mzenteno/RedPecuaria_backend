@@ -5,7 +5,6 @@ import {
   IsString,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class UpdateKardexEntryRequestDto {
@@ -22,10 +21,9 @@ export class UpdateKardexEntryRequestDto {
   movementTypeId: string;
 
   /** Ver el comentario en `CreateKardexEntryRequestDto`. */
-  @ValidateIf((dto: UpdateKardexEntryRequestDto) => dto.investorUserId !== null)
   @IsString()
   @MinLength(1)
-  investorUserId: string | null;
+  investorUserId: string;
 
   @IsNumber()
   @Min(0)

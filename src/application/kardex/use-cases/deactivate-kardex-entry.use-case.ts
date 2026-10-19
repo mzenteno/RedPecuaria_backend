@@ -27,6 +27,7 @@ import {
   TRANSACTION_MANAGER,
   type TransactionManager,
 } from '@domain/core/ports/transaction-manager.port';
+import { InvestmentInvestorNotFoundException } from '@domain/investment/exceptions/investment-investor-not-found.exception';
 import { assertInvestmentOwnership } from '../assert-investment-ownership';
 import { computeMovementDelta, negateDelta } from '../compute-movement-delta';
 
@@ -112,6 +113,29 @@ export class DeactivateKardexEntryUseCase {
 
       investment.applyBalanceDelta(reverseDelta);
       await this.investmentRepository.save(investment, ctx);
+
+      // `investorUserId` puede ser `null` en un movimiento histórico (ver
+      // `assertKardexInvestor`) — ese nunca afectó ningún `InvestmentInvestor`,
+      // así que no hay nada que revertirle a nadie.
+      if (entry.fields.investorUserId !== null) {
+        const investmentInvestor =
+          await this.investmentRepository.findInvestmentInvestor(
+            entry.investmentId,
+            entry.fields.investorUserId,
+            ctx,
+          );
+        if (!investmentInvestor) {
+          throw new InvestmentInvestorNotFoundException(
+            entry.investmentId,
+            entry.fields.investorUserId,
+          );
+        }
+        investmentInvestor.applyBalanceDelta(reverseDelta);
+        await this.investmentRepository.saveInvestmentInvestor(
+          investmentInvestor,
+          ctx,
+        );
+      }
 
       entry.deactivate();
       await this.kardexEntryRepository.save(entry, ctx);

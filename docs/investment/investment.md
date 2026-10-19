@@ -36,6 +36,10 @@ erDiagram
         bigint id
         bigint investmentId
         bigint userId
+        int balanceQuantity
+        numeric balanceKilos
+        numeric total
+        boolean isFinished
     }
     KARDEX_ENTRY {
         bigint id
@@ -98,13 +102,15 @@ motivo de cada límite:
   ella) — sin `companyId` propio. La propiedad **sí se puede cambiar** al editar
   (`UpdateInvestmentUseCase` valida que la nueva propiedad sea de la empresa activa, mismo
   chequeo que al crear — `PropertyNotFoundException` si no).
-- **`isFinished`** (desde 2026-09-08): estado de negocio (Activa/Terminada), **elegido a mano por
-  el usuario** desde el diálogo de edición — nada lo calcula ni lo fuerza automáticamente. La
-  idea de uso es marcar una inversión como Terminada cuando `balanceQuantity` llega a 0 (se
-  vendió todo el stock del ingreso), pero el sistema no valida ni exige eso — es solo una
-  etiqueta informativa. Distinto de `isDeleted`: una inversión terminada sigue **totalmente
-  visible y operable** (se le puede seguir registrando kardex, editarla, etc.), a diferencia de
-  una desactivada. Arranca siempre en `false` al crear — no es un campo de alta, solo de edición.
+- **`isFinished`**: estado de negocio (Activa/Terminada). Desde 2026-10-19 se marca **por
+  inversionista** (`InvestmentInvestor.isFinished`, botón "Finalizar"/"Reactivar" en su Kardex,
+  elegido a mano, no validado contra el saldo). Un inversionista terminado tiene su Kardex de
+  **solo lectura**: no admite altas, ediciones ni bajas de movimientos hasta que se lo reactive.
+  `Investment.isFinished` es **derivado y guardado**: terminada = todos sus inversionistas
+  terminados, recalculado por `syncInvestmentFinished` al finalizar/reactivar o al cambiar la
+  lista de inversionistas. Ya no se edita en el diálogo de la inversión. Distinto de
+  `isDeleted` (baja administrativa que oculta el registro). Ver
+  [el change](./changes/2026-10-19-terminada-por-inversionista.md).
 - Necesita **al menos un inversionista** (`InvestorsRequiredException` si la lista viene vacía).
 - Un inversionista tiene que ser: un usuario que exista, de tipo **Inversionista**
   (`UserType.isInvestor()`, ver `docs/user-type/user-type.md`), y que pertenezca (con
@@ -278,6 +284,7 @@ resultados incompletos.
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-10-19 — "Terminada" pasa a ser por inversionista](./changes/2026-10-19-terminada-por-inversionista.md)
 - [2026-09-26 — Kilos/dinero ya no tienen piso en 0](./changes/2026-09-26-sin-piso-en-kilos-o-dinero.md)
 - [2026-09-26 — Una Baja en modo "por dinero" también cuenta como Haber](./changes/2026-09-26-baja-en-el-haber.md)
 - [2026-09-24 — "Baja" ahora merma el saldo (kilos o dinero)](./changes/2026-09-24-baja-merma-saldo.md)

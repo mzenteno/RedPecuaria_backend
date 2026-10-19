@@ -27,6 +27,11 @@ export interface ListInvestmentsByInvestorInput extends PaginationParams {
   companyId: string;
   /** Solo lo manda `by-investor` — `mine` nunca lo usa. */
   propertyId?: string;
+  /** Solo lo manda `mine` (pestañas "Activas"/"Terminadas"), ver
+   * `FindInvestmentsByInvestorParams.isFinished`. */
+  isFinished?: boolean;
+  /** Solo lo manda `mine`, ver `FindInvestmentsByInvestorParams.orderByGestion`. */
+  orderByGestion?: boolean;
 }
 
 /**

@@ -1,7 +1,6 @@
 import {
   ArrayMinSize,
   IsArray,
-  IsBoolean,
   IsInt,
   IsString,
   Max,
@@ -32,9 +31,4 @@ export class UpdateInvestmentRequestDto {
   @ArrayMinSize(1)
   @IsString({ each: true })
   investorUserIds: string[];
-
-  /** Elección manual del usuario (ver `Investment.update`) — no se deriva
-   * del saldo, aunque la idea de uso es marcarlo cuando llegue a 0. */
-  @IsBoolean()
-  isFinished: boolean;
 }

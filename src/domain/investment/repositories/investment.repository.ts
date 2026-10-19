@@ -4,6 +4,7 @@ import {
   PaginatedResult,
 } from '@domain/common/paginated-result';
 import { Investment } from '../entities/investment';
+import { InvestmentInvestor } from '../entities/investment-investor';
 
 export const INVESTMENT_REPOSITORY = Symbol('InvestmentRepository');
 
@@ -14,6 +15,15 @@ export interface FindInvestmentsByInvestorParams extends PaginationParams {
    * pantalla de Inversiones); `GET /investments/mine` (Kardex) nunca lo
    * manda. */
   propertyId?: string;
+  /** Filtro opcional por el estado del INVERSIONISTA (no el derivado de la
+   * inversión, ver `InvestmentInvestor.isFinished`) — solo lo usa
+   * `GET /investments/mine` (pestañas "Activas"/"Terminadas" de Kardex).
+   * Sin él, trae ambos estados. */
+  isFinished?: boolean;
+  /** `true` → `gestion ASC, created_at DESC` (orden de "Mis inversiones" en
+   * Kardex). Sin él, solo `created_at DESC` (búsqueda por inversionista de
+   * la pantalla de Inversiones, igual que `by-gestion`/`by-property`). */
+  orderByGestion?: boolean;
 }
 
 export interface FindInvestmentsByGestionParams extends PaginationParams {
@@ -74,4 +84,22 @@ export interface InvestmentRepository {
     userIds: string[],
     ctx?: TransactionContext,
   ): Promise<void>;
+  /** El vínculo (inversión, inversionista) con su saldo propio — ver
+   * `InvestmentInvestor`. `null` si ese usuario no es inversionista de esta
+   * inversión (fila inexistente en `investment_investors`). */
+  findInvestmentInvestor(
+    investmentId: string,
+    userId: string,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor | null>;
+  /** Todos los vínculos de una inversión, con su saldo y estado — para
+   * recalcular `Investment.isFinished`, ver `syncInvestmentFinished`. */
+  findInvestmentInvestors(
+    investmentId: string,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor[]>;
+  saveInvestmentInvestor(
+    investmentInvestor: InvestmentInvestor,
+    ctx?: TransactionContext,
+  ): Promise<InvestmentInvestor>;
 }

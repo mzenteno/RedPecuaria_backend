@@ -12,6 +12,24 @@ export class InvestmentInvestorEntity {
   @Column({ name: 'user_id', type: 'bigint' })
   userId: string;
 
+  @Column({ name: 'balance_quantity', type: 'integer', default: 0 })
+  balanceQuantity: number;
+
+  @Column({
+    name: 'balance_kilos',
+    type: 'numeric',
+    precision: 12,
+    scale: 2,
+    default: 0,
+  })
+  balanceKilos: number;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
+  total: number;
+
+  @Column({ name: 'is_finished', type: 'boolean', default: false })
+  isFinished: boolean;
+
   @Column({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 }

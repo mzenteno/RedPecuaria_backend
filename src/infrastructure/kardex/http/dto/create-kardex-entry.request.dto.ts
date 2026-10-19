@@ -5,7 +5,6 @@ import {
   IsString,
   Min,
   MinLength,
-  ValidateIf,
 } from 'class-validator';
 
 export class CreateKardexEntryRequestDto {
@@ -27,13 +26,12 @@ export class CreateKardexEntryRequestDto {
   @MinLength(1)
   movementTypeId: string;
 
-  /** Obligatorio solo si el tipo de movimiento es "venta" — validado en el
-   * caso de uso (`assertKardexInvestor`), no acá (necesita resolver el tipo
-   * y consultar la lista de inversionistas de la inversión). */
-  @ValidateIf((dto: CreateKardexEntryRequestDto) => dto.investorUserId !== null)
+  /** Obligatorio siempre (desde 2026-10-14, ver `assertKardexInvestor`) —
+   * que sea un inversionista real de esta inversión se valida en el caso de
+   * uso, no acá (necesita consultar la lista de inversionistas). */
   @IsString()
   @MinLength(1)
-  investorUserId: string | null;
+  investorUserId: string;
 
   @IsNumber()
   @Min(0)
