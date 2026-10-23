@@ -18,6 +18,11 @@ export class PropertyEntity {
   @Column({ type: 'numeric', precision: 10, scale: 7 })
   longitude: number;
 
+  /** Ver `Property.boundary` — `jsonb` con `{ lat, lng }[]`, sin PostGIS
+   * (no hay consultas espaciales, solo se guarda y se dibuja). */
+  @Column({ type: 'jsonb', nullable: true })
+  boundary: { lat: number; lng: number }[] | null;
+
   @Column({ name: 'is_deleted', type: 'boolean', default: false })
   isDeleted: boolean;
 

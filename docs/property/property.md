@@ -20,6 +20,7 @@ erDiagram
         string name
         numeric latitude
         numeric longitude
+        jsonb boundary
         boolean isDeleted
         datetime createdAt
     }
@@ -32,6 +33,9 @@ erDiagram
 - `latitude`/`longitude` son obligatorios al crear — no hay "propiedad sin ubicación" (el
   frontend arranca el selector de mapa en un punto por defecto, Santa Cruz, Bolivia, hasta que
   el usuario haga clic para marcar el real).
+- `boundary` (contorno) es **opcional**: polígono de 3 o más vértices `{ lat, lng }`,
+  independiente del punto `latitude`/`longitude`. La superficie (ha) se calcula en el frontend.
+  Ver [el change](./changes/2026-10-23-contorno-de-la-propiedad.md).
 - Sin campo de dirección de texto — la ubicación es solo el par de coordenadas, suficiente para
   un marcador de mapa.
 - Puede desactivarse (`isDeleted = true`) sin eliminarse, igual que el resto del proyecto.
@@ -73,6 +77,7 @@ un `<select>` no puede "pasar de página".
 
 Ver el historial completo en [`changes/`](./changes/).
 
+- [2026-10-23 — Contorno (perímetro) de la propiedad](./changes/2026-10-23-contorno-de-la-propiedad.md)
 - [2026-09-05 — Paginación de servidor](../investment/changes/2026-09-05-paginacion-de-servidor.md)
 - [2026-09-04 — Mapa de ubicación más grande](./changes/2026-09-04-mapa-mas-grande.md)
 - [2026-09-04 — Grupo "Inversiones" en el sidebar](../menu/changes/2026-09-04-grupo-inversiones-y-kardex.md)

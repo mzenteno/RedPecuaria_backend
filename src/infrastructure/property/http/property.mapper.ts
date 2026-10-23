@@ -10,6 +10,7 @@ export class PropertyMapper {
       name: property.name,
       latitude: property.latitude,
       longitude: property.longitude,
+      boundary: property.boundary,
       createdAt: property.createdAt,
     };
   }

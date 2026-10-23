@@ -8,6 +8,7 @@ import { UpdatePropertyUseCase } from '@application/property/use-cases/update-pr
 import { DeactivatePropertyUseCase } from '@application/property/use-cases/deactivate-property.use-case';
 import { ListPropertiesByCompanyUseCase } from '@application/property/use-cases/list-properties-by-company.use-case';
 import { ListPropertyOptionsUseCase } from '@application/property/use-cases/list-property-options.use-case';
+import { GetPropertyByIdUseCase } from '@application/property/use-cases/get-property-by-id.use-case';
 import { PropertyController } from './http/property.controller';
 
 /**
@@ -24,6 +25,7 @@ import { PropertyController } from './http/property.controller';
     DeactivatePropertyUseCase,
     ListPropertiesByCompanyUseCase,
     ListPropertyOptionsUseCase,
+    GetPropertyByIdUseCase,
   ],
   exports: [PROPERTY_REPOSITORY],
 })

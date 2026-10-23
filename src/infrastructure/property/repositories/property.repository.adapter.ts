@@ -99,6 +99,7 @@ export class PropertyRepositoryAdapter implements PropertyRepository {
       // `numeric`/`decimal` de este módulo, ver `kardex`).
       latitude: Number(row.latitude),
       longitude: Number(row.longitude),
+      boundary: row.boundary,
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
     });
@@ -114,6 +115,7 @@ export class PropertyRepositoryAdapter implements PropertyRepository {
     row.name = snapshot.name;
     row.latitude = snapshot.latitude;
     row.longitude = snapshot.longitude;
+    row.boundary = snapshot.boundary;
     row.isDeleted = snapshot.isDeleted;
     row.createdAt = snapshot.createdAt;
     return row;

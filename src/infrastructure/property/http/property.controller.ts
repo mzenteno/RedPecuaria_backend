@@ -14,6 +14,7 @@ import { UpdatePropertyUseCase } from '@application/property/use-cases/update-pr
 import { DeactivatePropertyUseCase } from '@application/property/use-cases/deactivate-property.use-case';
 import { ListPropertiesByCompanyUseCase } from '@application/property/use-cases/list-properties-by-company.use-case';
 import { ListPropertyOptionsUseCase } from '@application/property/use-cases/list-property-options.use-case';
+import { GetPropertyByIdUseCase } from '@application/property/use-cases/get-property-by-id.use-case';
 import { PaginatedResponseDto } from '@infrastructure/common/http/paginated-response.dto';
 import { CurrentUser } from '@infrastructure/common/http/current-user.decorator';
 import { CreatePropertyRequestDto } from './dto/create-property.request.dto';
@@ -36,6 +37,7 @@ export class PropertyController {
     private readonly deactivatePropertyUseCase: DeactivatePropertyUseCase,
     private readonly listPropertiesByCompanyUseCase: ListPropertiesByCompanyUseCase,
     private readonly listPropertyOptionsUseCase: ListPropertyOptionsUseCase,
+    private readonly getPropertyByIdUseCase: GetPropertyByIdUseCase,
   ) {}
 
   @Post()
@@ -110,5 +112,19 @@ export class PropertyController {
     return properties.map((property) =>
       PropertyMapper.toOptionResponse(property),
     );
+  }
+
+  /** Detalle para la pantalla de edición (ver `GetPropertyByIdUseCase`).
+   * DESPUÉS de `@Get('options')` — si no, `:id` capturaría "options". */
+  @Get(':id')
+  async getById(
+    @Param('id') id: string,
+    @CurrentUser('companyId') companyId: string,
+  ): Promise<PropertyResponseDto> {
+    const property = await this.getPropertyByIdUseCase.execute({
+      propertyId: id,
+      companyId,
+    });
+    return PropertyMapper.toResponse(property);
   }
 }

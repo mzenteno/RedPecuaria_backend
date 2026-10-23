@@ -1,3 +1,4 @@
+import type { GeoPoint } from '@domain/property/entities/property';
 import { Inject, Injectable } from '@nestjs/common';
 import { Property } from '@domain/property/entities/property';
 import {
@@ -13,6 +14,8 @@ export interface UpdatePropertyInput {
   name: string;
   latitude: number;
   longitude: number;
+  /** Ver `Property.update` — `undefined` deja el contorno como está. */
+  boundary?: GeoPoint[] | null;
 }
 
 @Injectable()
@@ -42,6 +45,7 @@ export class UpdatePropertyUseCase {
       name: input.name,
       latitude: input.latitude,
       longitude: input.longitude,
+      boundary: input.boundary,
     });
     return this.propertyRepository.save(property);
   }
